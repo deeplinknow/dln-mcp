@@ -46,7 +46,7 @@ npm install @deeplinknow/react-native
 cd ios && pod install
 ```
 
-If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.2.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
+If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.3.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
 
 Autolinking picks the right native module (TurboModule on the new architecture, bridge module on the old one). Add the Associated Domains entitlement (`applinks:myapp.deeplinknow.com`) on iOS and an `autoVerify` https intent filter for your link domains on Android. See the [iOS](/docs/ios) and [Android](/docs/android) docs for details and the dashboard settings that serve the `.well-known` files.
 
@@ -101,6 +101,8 @@ const link = await DeepLinkNow.checkDeferredDeepLink({ minConfidence: 50 });
 
 `await DeepLinkNow.resetDeferredDeepLink()` clears the first-launch state and the cached referrer result so you can test again without reinstalling. `clearReferrerCache()` is a deprecated alias.
 
+Using Expo Router? See [Expo Router](#expo-router).
+
 ### The result: `DeferredDeepLink`
 
 | Field | Type | Meaning |
@@ -114,6 +116,131 @@ const link = await DeepLinkNow.checkDeferredDeepLink({ minConfidence: 50 });
 | `matchQuality` | `"HIGH" \| "MEDIUM" \| "LOW"` | `HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49 |
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | optional | From the server |
 | `matchDetails` | optional | Score breakdown (fingerprint results) |
+
+## Expo Router
+
+If your app uses Expo Router, get the deferred deep link in `app/+native-intent.tsx`. Expo Router calls this file with the URL that launched the app, before the first screen mounts. Resolving the link there means the app opens straight on the screen the user tapped: the home screen doesn't flash first, and your layouts' redirects (an auth gate, onboarding) see the right route from the start.
+
+The minimal setup is two files. Create `app/+native-intent.tsx`:
+
+```tsx
+import { createRedirectSystemPath } from "@deeplinknow/react-native/expo-router";
+
+export const redirectSystemPath = createRedirectSystemPath({
+  apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+});
+```
+
+And handle late links in your root layout, `app/_layout.tsx`:
+
+```tsx
+import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { Stack, useRouter } from "expo-router";
+import { useEffect } from "react";
+
+export default function RootLayout() {
+  const { link, clear } = useDeferredDeepLink();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (link) {
+      clear(); // so it opens once
+      router.push(link.fullPath);
+    }
+  }, [link]);
+
+  return <Stack />;
+}
+```
+
+**Don't skip the second file.** The helper waits at most `timeoutMs` (3 seconds by default) before the first screen mounts. If the link is found after that, for example on a slow connection, it reaches your app only through `useDeferredDeepLink()`. Without the hook, that link is dropped. The hook shares the helper's check, so the network calls run once, and a link the helper already opened comes back as `null`.
+
+You don't need to call `DeepLinkNow.initialize` anywhere else: the helper does it.
+
+What happens on each launch:
+
+| The app was opened… | The helper returns |
+|---|---|
+| for the first time after install, from the store or the home screen | The link the user tapped before installing, e.g. `/products/123?ref=newsletter`. If there is none, or the check takes longer than `timeoutMs`, the app starts on its normal route |
+| by a link on your DeepLinkNow domains (`yourapp.deeplinknow.com` or a verified custom domain) | That link's path and query, e.g. `/products/123?ref=newsletter` |
+| any other way (a later launch, another URL, your own `myapp://` links) | The URL unchanged, so Expo Router handles it as usual |
+
+The helper never throws. If something fails (offline, a wrong API key), the app starts where it would have without DeepLinkNow, and `DeepLinkNow.lastError` says why.
+
+### Options
+
+| Option | Default | Description |
+|---|---|---|
+| `apiKey` | required | Your public API key (`dln_pub_…`) |
+| `config` | `{}` | Passed to `initialize`: `enableLogs`, `baseUrl`, `timeoutMs`, `retryAttempts` |
+| `minConfidence` | off | Ignore fingerprint matches scoring below this (0–100). See [How fingerprint matching works](#how-fingerprint-matching-works) |
+| `useClipboard` | `true` | iOS: check the link the landing page copied first |
+| `timeoutMs` | `3000` | The longest the first launch waits for the link, in milliseconds. `0` never waits |
+| `mapUniversalLinks` | `true` | Rewrite links on your DeepLinkNow domains to their in-app path |
+| `mapLink` | the link's `fullPath` | `(link, source) => string \| null`. Use it when your screen paths differ from your link paths. `source` is `"deferred"` or `"universal"`. Return `null` to keep the incoming URL |
+
+For example, if your links look like `/p/123` but the screen is `app/products/[id].tsx`:
+
+```tsx
+export const redirectSystemPath = createRedirectSystemPath({
+  apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  minConfidence: 50,
+  mapLink: (link) =>
+    link.path.startsWith("/p/") ? `/products/${link.path.slice(3)}` : link.fullPath,
+});
+```
+
+If you already have a `redirectSystemPath` with your own rewrites, call `redirectSystemPathWithDeferredLink(event, options)` from it and apply your rewrites to the result.
+
+### Open the link after sign-in
+
+If a deep-linked screen needs a signed-in user, set `timeoutMs: 0` in `+native-intent.tsx` so the app starts immediately and every deferred link comes through the hook, then navigate once the user has signed in:
+
+```tsx
+// app/_layout.tsx
+import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { Stack, useRouter } from "expo-router";
+import { useEffect } from "react";
+
+export default function RootLayout() {
+  const { link, clear } = useDeferredDeepLink();
+  const { isSignedIn } = useAuth(); // your auth
+  const router = useRouter();
+
+  useEffect(() => {
+    if (link && isSignedIn) {
+      clear(); // so it opens once
+      router.push(link.fullPath);
+    }
+  }, [link, isSignedIn]);
+
+  return <Stack />;
+}
+```
+
+### Without Expo Router
+
+`useDeferredDeepLink()` works in any React Native app. Pass your API key, and it initializes the SDK and checks once:
+
+```tsx
+import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { useEffect } from "react";
+
+function App() {
+  const { link, isLoading, clear } = useDeferredDeepLink({ apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" });
+
+  useEffect(() => {
+    if (link) {
+      clear();
+      navigation.navigate("Product", { path: link.path, params: link.queryParams });
+    }
+  }, [link]);
+
+  // …
+}
+```
+
+It returns `{ link, isLoading, clear }`. `link` is `null` until a link is found, after `clear()`, and on every launch after the first (in Expo Go, which has no native first-launch flag, the check runs again on each launch while the click can still be claimed).
 
 ## How fingerprint matching works
 

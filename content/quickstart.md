@@ -17,7 +17,9 @@ To try an SDK before creating an app, use the demo key `test_api_key`. It return
 - [React Native / Expo](#react-native)
 - [iOS (Swift)](#ios-swift)
 - [Android (Kotlin)](#android-kotlin)
-- Flutter: there is no Flutter SDK. See the [Flutter integration guide](/docs/flutter), which wraps the native SDKs.
+- [Flutter](#flutter)
+
+Building with a coding agent (Claude Code, Cursor, VS Code, Windsurf)? Install the [DeepLinkNow MCP server](/docs/mcp) and ask the agent to add DeepLinkNow: it reads these docs and checks your link domain.
 
 ## React Native
 
@@ -40,12 +42,14 @@ if (link) {
 }
 ```
 
+Using Expo Router? Resolve the link in `app/+native-intent.tsx` with `@deeplinknow/react-native/expo-router` instead, so the app opens straight on the right screen. See [Expo Router](/docs/react-native#expo-router).
+
 **→ Next**: [Full React Native documentation](/docs/react-native)
 
 ## iOS (Swift)
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.2'
+pod 'DeepLinkNow', '~> 1.3'
 ```
 
 Or add `https://github.com/deeplinknow/dln-ios` with Swift Package Manager. Add `applinks:<alias>.deeplinknow.com` under **Signing & Capabilities → Associated Domains**. Then:
@@ -77,7 +81,7 @@ Handle Universal Links when the app is already installed:
 
 ```kotlin
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.2.0")
+    implementation("com.deeplinknow:dln-android:1.3.0")
 }
 ```
 
@@ -97,6 +101,28 @@ lifecycleScope.launch {
 ```
 
 **→ Next**: [Full Android documentation](/docs/android)
+
+## Flutter
+
+```bash
+flutter pub add deeplinknow
+```
+
+The plugin wraps the native iOS and Android SDKs, which Swift Package Manager or CocoaPods and Gradle fetch for you. Add the Associated Domains entitlement and the `autoVerify` intent filter as for the native SDKs. Then:
+
+```dart
+import 'package:deeplinknow/deeplinknow.dart';
+
+await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+
+final link = await DeepLinkNow.checkDeferredDeepLink();
+if (link != null) {
+  // link.source: clipboard (iOS), referrer (Android) or fingerprint
+  router.go(link.fullPath);
+}
+```
+
+**→ Next**: [Full Flutter documentation](/docs/flutter)
 
 ## How the deferred link is found
 

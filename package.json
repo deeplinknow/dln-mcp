@@ -1,6 +1,6 @@
 {
   "name": "@deeplinknow/mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "DeepLinkNow MCP server: lets coding agents (Claude Code, Cursor, Windsurf, VS Code) set up deferred deep linking, check Universal Link and App Link domains, and manage DeepLinkNow links.",
   "keywords": [
     "mcp",

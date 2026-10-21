@@ -4,13 +4,13 @@
   "title": "DeepLinkNow",
   "description": "Set up deferred deep linking, check Universal Link and App Link domains, migrate from FDL/Branch.",
   "websiteUrl": "https://deeplinknow.com",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@deeplinknow/mcp",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {

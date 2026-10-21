@@ -25,16 +25,16 @@ You get both with one call: `checkDeferredDeepLink()`.
 In Xcode choose **File > Add Package Dependencies...** and enter `https://github.com/deeplinknow/dln-ios`, or add it to `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.2.0")
+.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.3.0")
 ```
 
 ### CocoaPods
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.2'
+pod 'DeepLinkNow', '~> 1.3'
 ```
 
-Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.2)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
+Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.3)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
 
 ### Universal Links (Associated Domains)
 
@@ -204,7 +204,7 @@ The building blocks behind `checkDeferredDeepLink()` stay available:
 | `parseDeepLink(_:)` | Older tuple form `(path, parameters)` of `parseLink(_:)` |
 | `isValidDomain(_:)` | The host rule: exactly `<alias>.deeplinknow.com` or a verified custom domain, case-insensitive |
 | `createDeepLink(path:customParameters:)` | Build an https link on your primary link domain that `parseLink` round-trips (`nil` before init) |
-| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.2.0"`) |
+| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.3.0"`) |
 
 If you call these yourself, check the pasteboard before fingerprinting:
 

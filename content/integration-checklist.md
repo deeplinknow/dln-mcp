@@ -32,9 +32,9 @@ These files are served from your saved settings and cached for up to 5 minutes.
 ## SDK installation
 
 - [ ] **React Native / Expo**: `npx expo install @deeplinknow/react-native` (development build, not Expo Go) or `npm install @deeplinknow/react-native` + `pod install`
-- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.2'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
-- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.2.0")` (the library declares `INTERNET` itself)
-- [ ] **Flutter**: there is no Flutter SDK; follow the [Flutter integration guide](/docs/flutter), which wraps the native SDKs
+- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.3'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
+- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.3.0")` (the library declares `INTERNET` itself)
+- [ ] **Flutter**: `flutter pub add deeplinknow` (iOS 13+, Android `minSdk` 24; rebuild the app after adding it)
 - [ ] iOS: Associated Domains `applinks:myapp.deeplinknow.com` (and your custom domain)
 - [ ] Android: `autoVerify` https intent filter for `myapp.deeplinknow.com` (and your custom domain)
 - [ ] No ATT prompt, IDFA, or advertising-ID permission is needed for DeepLinkNow
@@ -115,5 +115,6 @@ function route(path: string, query: Record<string, string | true | string[]>) {
 ## Need Help?
 
 - [Quick Start](/docs/quickstart)
-- [iOS](/docs/ios), [Android](/docs/android), [React Native](/docs/react-native)
+- [iOS](/docs/ios), [Android](/docs/android), [React Native](/docs/react-native), [Flutter](/docs/flutter)
+- [MCP server for coding agents](/docs/mcp)
 - Email: support@deeplinknow.com

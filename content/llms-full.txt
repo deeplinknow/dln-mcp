@@ -1,6 +1,6 @@
 # DeepLinkNow: full documentation
 
-> Deep links and deferred deep links for iOS, Android and React Native, without the attribution and ad tracking of Branch or AppsFlyer. Any path on your domain works as a link.
+> Deep links and deferred deep links for iOS, Android, React Native and Flutter, without the attribution and ad tracking of Branch or AppsFlyer. Any path on your domain works as a link.
 
 - DeepLinkNow does deep linking only: no attribution, no ad tracking, no advertising IDs, no ATT prompt, no cross-app data.
 - Any path and query on an app's link domain (yourapp.deeplinknow.com, or a custom domain on paid plans) is a working deep link. Nothing has to be created in a dashboard first.
@@ -9,7 +9,8 @@
 - Android: the click ID goes through the Google Play Install Referrer, which is exact for Play Store installs. A scored fingerprint match is the backup.
 - Fingerprint matches come with confidence_score (0-100) and match_quality (HIGH, MEDIUM, LOW). An IP match is not required. The developer picks the threshold.
 - Retention: A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
-- SDKs: iOS (Swift, SPM and CocoaPods), Android (Kotlin, Maven Central com.deeplinknow:dln-android), React Native and Expo (npm @deeplinknow/react-native). Flutter apps call the native SDKs through a platform channel.
+- SDKs: iOS (Swift, SPM and CocoaPods), Android (Kotlin, Maven Central com.deeplinknow:dln-android), React Native and Expo (npm @deeplinknow/react-native, with an Expo Router helper), Flutter (pub.dev deeplinknow, also in FlutterFlow). All on version 1.3; React Native and Flutter wrap the native SDKs.
+- MCP server for coding agents (npm @deeplinknow/mcp): Claude Code, Cursor, Claude Desktop, VS Code and Windsurf can read these docs, check a link domain and plan a migration. It uses a private key only for its optional link tools.
 - Apple App Site Association and assetlinks.json are generated and hosted for every app.
 - Link pages load no analytics or tracking scripts, and no DeepLinkNow domain is on the AdGuard or EasyPrivacy block lists.
 
@@ -35,7 +36,9 @@ To try an SDK before creating an app, use the demo key `test_api_key`. It return
 - [React Native / Expo](#react-native)
 - [iOS (Swift)](#ios-swift)
 - [Android (Kotlin)](#android-kotlin)
-- Flutter: there is no Flutter SDK. See the [Flutter integration guide](/docs/flutter), which wraps the native SDKs.
+- [Flutter](#flutter)
+
+Building with a coding agent (Claude Code, Cursor, VS Code, Windsurf)? Install the [DeepLinkNow MCP server](/docs/mcp) and ask the agent to add DeepLinkNow: it reads these docs and checks your link domain.
 
 ## React Native
 
@@ -58,12 +61,14 @@ if (link) {
 }
 ```
 
+Using Expo Router? Resolve the link in `app/+native-intent.tsx` with `@deeplinknow/react-native/expo-router` instead, so the app opens straight on the right screen. See [Expo Router](/docs/react-native#expo-router).
+
 **→ Next**: [Full React Native documentation](/docs/react-native)
 
 ## iOS (Swift)
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.2'
+pod 'DeepLinkNow', '~> 1.3'
 ```
 
 Or add `https://github.com/deeplinknow/dln-ios` with Swift Package Manager. Add `applinks:<alias>.deeplinknow.com` under **Signing & Capabilities → Associated Domains**. Then:
@@ -95,7 +100,7 @@ Handle Universal Links when the app is already installed:
 
 ```kotlin
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.2.0")
+    implementation("com.deeplinknow:dln-android:1.3.0")
 }
 ```
 
@@ -115,6 +120,28 @@ lifecycleScope.launch {
 ```
 
 **→ Next**: [Full Android documentation](/docs/android)
+
+## Flutter
+
+```bash
+flutter pub add deeplinknow
+```
+
+The plugin wraps the native iOS and Android SDKs, which Swift Package Manager or CocoaPods and Gradle fetch for you. Add the Associated Domains entitlement and the `autoVerify` intent filter as for the native SDKs. Then:
+
+```dart
+import 'package:deeplinknow/deeplinknow.dart';
+
+await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+
+final link = await DeepLinkNow.checkDeferredDeepLink();
+if (link != null) {
+  // link.source: clipboard (iOS), referrer (Android) or fingerprint
+  router.go(link.fullPath);
+}
+```
+
+**→ Next**: [Full Flutter documentation](/docs/flutter)
 
 ## How the deferred link is found
 
@@ -184,16 +211,16 @@ You get both with one call: `checkDeferredDeepLink()`.
 In Xcode choose **File > Add Package Dependencies...** and enter `https://github.com/deeplinknow/dln-ios`, or add it to `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.2.0")
+.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.3.0")
 ```
 
 ### CocoaPods
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.2'
+pod 'DeepLinkNow', '~> 1.3'
 ```
 
-Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.2)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
+Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.3)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
 
 ### Universal Links (Associated Domains)
 
@@ -363,7 +390,7 @@ The building blocks behind `checkDeferredDeepLink()` stay available:
 | `parseDeepLink(_:)` | Older tuple form `(path, parameters)` of `parseLink(_:)` |
 | `isValidDomain(_:)` | The host rule: exactly `<alias>.deeplinknow.com` or a verified custom domain, case-insensitive |
 | `createDeepLink(path:customParameters:)` | Build an https link on your primary link domain that `parseLink` round-trips (`nil` before init) |
-| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.2.0"`) |
+| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.3.0"`) |
 
 If you call these yourself, check the pasteboard before fingerprinting:
 
@@ -423,14 +450,14 @@ You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.2.0")
+    implementation("com.deeplinknow:dln-android:1.3.0")
 }
 ```
 
 ```gradle
 // build.gradle
 dependencies {
-    implementation 'com.deeplinknow:dln-android:1.2.0'
+    implementation 'com.deeplinknow:dln-android:1.3.0'
 }
 ```
 
@@ -658,7 +685,7 @@ npm install @deeplinknow/react-native
 cd ios && pod install
 ```
 
-If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.2.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
+If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.3.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
 
 Autolinking picks the right native module (TurboModule on the new architecture, bridge module on the old one). Add the Associated Domains entitlement (`applinks:myapp.deeplinknow.com`) on iOS and an `autoVerify` https intent filter for your link domains on Android. See the [iOS](/docs/ios) and [Android](/docs/android) docs for details and the dashboard settings that serve the `.well-known` files.
 
@@ -713,6 +740,8 @@ const link = await DeepLinkNow.checkDeferredDeepLink({ minConfidence: 50 });
 
 `await DeepLinkNow.resetDeferredDeepLink()` clears the first-launch state and the cached referrer result so you can test again without reinstalling. `clearReferrerCache()` is a deprecated alias.
 
+Using Expo Router? See [Expo Router](#expo-router).
+
 ### The result: `DeferredDeepLink`
 
 | Field | Type | Meaning |
@@ -726,6 +755,131 @@ const link = await DeepLinkNow.checkDeferredDeepLink({ minConfidence: 50 });
 | `matchQuality` | `"HIGH" \| "MEDIUM" \| "LOW"` | `HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49 |
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | optional | From the server |
 | `matchDetails` | optional | Score breakdown (fingerprint results) |
+
+## Expo Router
+
+If your app uses Expo Router, get the deferred deep link in `app/+native-intent.tsx`. Expo Router calls this file with the URL that launched the app, before the first screen mounts. Resolving the link there means the app opens straight on the screen the user tapped: the home screen doesn't flash first, and your layouts' redirects (an auth gate, onboarding) see the right route from the start.
+
+The minimal setup is two files. Create `app/+native-intent.tsx`:
+
+```tsx
+import { createRedirectSystemPath } from "@deeplinknow/react-native/expo-router";
+
+export const redirectSystemPath = createRedirectSystemPath({
+  apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+});
+```
+
+And handle late links in your root layout, `app/_layout.tsx`:
+
+```tsx
+import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { Stack, useRouter } from "expo-router";
+import { useEffect } from "react";
+
+export default function RootLayout() {
+  const { link, clear } = useDeferredDeepLink();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (link) {
+      clear(); // so it opens once
+      router.push(link.fullPath);
+    }
+  }, [link]);
+
+  return <Stack />;
+}
+```
+
+**Don't skip the second file.** The helper waits at most `timeoutMs` (3 seconds by default) before the first screen mounts. If the link is found after that, for example on a slow connection, it reaches your app only through `useDeferredDeepLink()`. Without the hook, that link is dropped. The hook shares the helper's check, so the network calls run once, and a link the helper already opened comes back as `null`.
+
+You don't need to call `DeepLinkNow.initialize` anywhere else: the helper does it.
+
+What happens on each launch:
+
+| The app was opened… | The helper returns |
+|---|---|
+| for the first time after install, from the store or the home screen | The link the user tapped before installing, e.g. `/products/123?ref=newsletter`. If there is none, or the check takes longer than `timeoutMs`, the app starts on its normal route |
+| by a link on your DeepLinkNow domains (`yourapp.deeplinknow.com` or a verified custom domain) | That link's path and query, e.g. `/products/123?ref=newsletter` |
+| any other way (a later launch, another URL, your own `myapp://` links) | The URL unchanged, so Expo Router handles it as usual |
+
+The helper never throws. If something fails (offline, a wrong API key), the app starts where it would have without DeepLinkNow, and `DeepLinkNow.lastError` says why.
+
+### Options
+
+| Option | Default | Description |
+|---|---|---|
+| `apiKey` | required | Your public API key (`dln_pub_…`) |
+| `config` | `{}` | Passed to `initialize`: `enableLogs`, `baseUrl`, `timeoutMs`, `retryAttempts` |
+| `minConfidence` | off | Ignore fingerprint matches scoring below this (0–100). See [How fingerprint matching works](#how-fingerprint-matching-works) |
+| `useClipboard` | `true` | iOS: check the link the landing page copied first |
+| `timeoutMs` | `3000` | The longest the first launch waits for the link, in milliseconds. `0` never waits |
+| `mapUniversalLinks` | `true` | Rewrite links on your DeepLinkNow domains to their in-app path |
+| `mapLink` | the link's `fullPath` | `(link, source) => string \| null`. Use it when your screen paths differ from your link paths. `source` is `"deferred"` or `"universal"`. Return `null` to keep the incoming URL |
+
+For example, if your links look like `/p/123` but the screen is `app/products/[id].tsx`:
+
+```tsx
+export const redirectSystemPath = createRedirectSystemPath({
+  apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  minConfidence: 50,
+  mapLink: (link) =>
+    link.path.startsWith("/p/") ? `/products/${link.path.slice(3)}` : link.fullPath,
+});
+```
+
+If you already have a `redirectSystemPath` with your own rewrites, call `redirectSystemPathWithDeferredLink(event, options)` from it and apply your rewrites to the result.
+
+### Open the link after sign-in
+
+If a deep-linked screen needs a signed-in user, set `timeoutMs: 0` in `+native-intent.tsx` so the app starts immediately and every deferred link comes through the hook, then navigate once the user has signed in:
+
+```tsx
+// app/_layout.tsx
+import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { Stack, useRouter } from "expo-router";
+import { useEffect } from "react";
+
+export default function RootLayout() {
+  const { link, clear } = useDeferredDeepLink();
+  const { isSignedIn } = useAuth(); // your auth
+  const router = useRouter();
+
+  useEffect(() => {
+    if (link && isSignedIn) {
+      clear(); // so it opens once
+      router.push(link.fullPath);
+    }
+  }, [link, isSignedIn]);
+
+  return <Stack />;
+}
+```
+
+### Without Expo Router
+
+`useDeferredDeepLink()` works in any React Native app. Pass your API key, and it initializes the SDK and checks once:
+
+```tsx
+import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { useEffect } from "react";
+
+function App() {
+  const { link, isLoading, clear } = useDeferredDeepLink({ apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" });
+
+  useEffect(() => {
+    if (link) {
+      clear();
+      navigation.navigate("Product", { path: link.path, params: link.queryParams });
+    }
+  }, [link]);
+
+  // …
+}
+```
+
+It returns `{ link, isLoading, clear }`. `link` is `null` until a link is found, after `clear()`, and on every launch after the first (in Expo Go, which has no native first-launch flag, the check runs again on each launch while the click can still be claimed).
 
 ## How fingerprint matching works
 
@@ -784,207 +938,567 @@ The native SDKs send only what matching needs (platform, OS version, device clas
 ---
 Source: https://deeplinknow.com/docs/flutter
 
-# Flutter Integration Guide
+# DeepLinkNow Flutter SDK
 
 ## Overview
 
-There is no official Flutter SDK or pub package for DeepLinkNow. This is an integration guide: it shows how to call the native [iOS](/docs/ios) and [Android](/docs/android) SDKs from a Flutter app through a platform channel. All deferred-link logic (pasteboard and Install Referrer, fingerprint matching, first-launch handling, link parsing) runs in the native SDKs. Your Dart code only receives the result.
+[`deeplinknow`](https://pub.dev/packages/deeplinknow) is the Flutter plugin for DeepLinkNow. It gives Flutter and FlutterFlow apps the same two calls as the native SDKs: initialize, and get the deferred deep link.
 
-## 1. Add the native SDKs
+The plugin is a thin wrapper over the native [iOS](/docs/ios) and [Android](/docs/android) SDKs (1.3). All deferred-link logic runs natively: the pasteboard and Install Referrer steps, fingerprint matching, first-launch handling and link parsing. So a Flutter app gets the same answers as a Swift, Kotlin or React Native app.
 
-**iOS** (`ios/Podfile`):
+When a user taps one of your links before installing your app, `checkDeferredDeepLink()` returns the path and query they tapped:
 
-```ruby
-target 'Runner' do
-  use_frameworks!
-  pod 'DeepLinkNow', '~> 1.2'
-end
+- **iOS**: 1. the link the landing page copied to the pasteboard (exact), then 2. fingerprint matching (best effort).
+- **Android**: 1. the Play Install Referrer (exact), then 2. fingerprint matching (best effort).
+
+It is not an analytics or attribution SDK. It never reads advertising identifiers and never triggers the App Tracking Transparency prompt.
+
+## Requirements
+
+- Flutter 3.24+ (Dart 3.5+)
+- iOS 13+, with Swift Package Manager or CocoaPods
+- Android API 24+ (`minSdk 24`)
+- Your app's **public** API key (`dln_pub_…`) from the dashboard's **API Keys** page
+
+## Installation
+
+```sh
+flutter pub add deeplinknow
 ```
 
-Run `cd ios && pod install`.
+This also installs `deeplinknow_ios`, the plugin's iOS implementation. You don't add it yourself.
 
-**Android** (`android/app/build.gradle`):
+- **iOS**: nothing else to install. With Swift Package Manager (the default in recent Flutter) Xcode fetches `dln-ios`; with CocoaPods, `pod install` (which `flutter run` and `flutter build` run for you) fetches the `DeepLinkNow` pod. With CocoaPods, set at least `platform :ios, '13.0'` in `ios/Podfile`. No `Info.plist` keys are needed.
+- **Android**: the native SDK (`com.deeplinknow:dln-android:1.3.0`) comes from Maven Central, which new Flutter projects already list in `android/settings.gradle(.kts)`. Make sure `minSdk` is at least 24 in `android/app/build.gradle(.kts)`.
 
-```gradle
-dependencies {
-    implementation 'com.deeplinknow:dln-android:1.2.0'
-}
+Stop the app and rebuild it after adding the package. Hot restart doesn't load native code.
+
+## Set up your link domains
+
+DeepLinkNow serves the `.well-known` files for your domains from your dashboard settings, so links open your app when it's installed.
+
+1. In the dashboard, set your **Team ID** and **Bundle ID** (iOS) and your **package name** and **SHA-256 certificate fingerprints** (Android).
+2. **iOS**: open `ios/Runner.xcworkspace` in Xcode, go to **Runner → Signing & Capabilities → + Capability → Associated Domains**, and add `applinks:<alias>.deeplinknow.com` (and `applinks:<your custom domain>` if you have one).
+3. **Android**: add an App Links intent filter to the `MainActivity` in `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="https" android:host="<alias>.deeplinknow.com" />
+</intent-filter>
 ```
 
-## 2. Configure your link domains
+Replace `<alias>` with your app's alias, and add one `<data>` line per custom domain.
 
-- **iOS**: in Xcode (`ios/Runner.xcworkspace`), add **Associated Domains** → `applinks:<alias>.deeplinknow.com` (and your custom domain).
-- **Android**: in `android/app/src/main/AndroidManifest.xml`, add an `autoVerify` https intent filter for `<alias>.deeplinknow.com` to `MainActivity`.
-- In the dashboard, set your Team ID + Bundle ID and package name + SHA-256 fingerprints so the `.well-known` files are served.
+## Getting Started
 
-## 3. Dart side
+### Initialize and get the deferred deep link
 
 ```dart
-import 'package:flutter/services.dart';
+import 'package:deeplinknow/deeplinknow.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
-class DeepLinkNowChannel {
-  static const _channel = MethodChannel('com.deeplinknow/sdk');
-
-  /// Use your app's public key (dln_pub_...).
-  static Future<void> initialize(String apiKey) =>
-      _channel.invokeMethod('initialize', {'apiKey': apiKey});
-
-  /// Returns {path, queryParams, fullPath, url, source, confidenceScore, matchQuality} or null.
-  static Future<Map<String, dynamic>?> checkDeferredDeepLink({double? minConfidence}) async {
-    final result = await _channel.invokeMethod<Map>(
-      'checkDeferredDeepLink',
-      {'minConfidence': minConfidence},
-    );
-    return result?.cast<String, dynamic>();
-  }
-
-  static Future<void> resetDeferredDeepLink() =>
-      _channel.invokeMethod('resetDeferredDeepLink');
-}
-```
-
-## 4. iOS side (`ios/Runner/AppDelegate.swift`)
-
-```swift
-import Flutter
-import UIKit
-import DeepLinkNow
-
-@main
-@objc class AppDelegate: FlutterAppDelegate {
-  override func application(
-    _ application: UIApplication,
-    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-  ) -> Bool {
-    let controller = window?.rootViewController as! FlutterViewController
-    let channel = FlutterMethodChannel(name: "com.deeplinknow/sdk",
-                                       binaryMessenger: controller.binaryMessenger)
-
-    channel.setMethodCallHandler { call, result in
-      let args = call.arguments as? [String: Any]
-      switch call.method {
-      case "initialize":
-        guard let apiKey = args?["apiKey"] as? String else {
-          result(FlutterError(code: "INVALID_ARGUMENT", message: "apiKey is required", details: nil))
-          return
-        }
-        Task {
-          await DeepLinkNow.initialize(config: DLNConfig(apiKey: apiKey))
-          result(DeepLinkNow.isInitialized)
-        }
-      case "checkDeferredDeepLink":
-        let minConfidence = args?["minConfidence"] as? Double
-        Task {
-          do {
-            // Pasteboard first, then fingerprint
-            let link = try await DeepLinkNow.checkDeferredDeepLinkThrowing(
-              DLNDeferredOptions(minConfidence: minConfidence))
-            result(link.map { [
-              "path": $0.path,
-              "queryParams": $0.queryParams.mapValues { $0.anyValue },
-              "fullPath": $0.fullPath,
-              "url": $0.url,
-              "source": $0.source.rawValue,
-              "confidenceScore": $0.confidenceScore,
-              "matchQuality": $0.matchQuality.rawValue,
-            ] })
-          } catch {
-            result(FlutterError(code: "DLN_ERROR", message: "\(error)", details: nil))
-          }
-        }
-      case "resetDeferredDeepLink":
-        DeepLinkNow.resetDeferredDeepLink()
-        result(nil)
-      default:
-        result(FlutterMethodNotImplemented)
-      }
-    }
-
-    GeneratedPluginRegistrant.register(with: self)
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-  }
-}
-```
-
-## 5. Android side (`MainActivity.kt`)
-
-```kotlin
-import com.deeplinknow.DLN
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
-
-class MainActivity : FlutterActivity() {
-    private val scope = MainScope()
-
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.deeplinknow/sdk")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "initialize" -> {
-                        val apiKey = call.argument<String>("apiKey")
-                        if (apiKey == null) {
-                            result.error("INVALID_ARGUMENT", "apiKey is required", null)
-                        } else {
-                            DLN.init(applicationContext, apiKey, onComplete = { r ->
-                                result.success(r.isSuccess)
-                            })
-                        }
-                    }
-                    "checkDeferredDeepLink" -> scope.launch {
-                        // Install Referrer first, then fingerprint
-                        DLN.checkDeferredDeepLink(minConfidence = call.argument<Double>("minConfidence"))
-                            .onSuccess { link ->
-                                result.success(link?.let {
-                                    mapOf(
-                                        "path" to it.path,
-                                        "fullPath" to it.fullPath,
-                                        "url" to it.url,
-                                        "queryParams" to it.queryParams.mapValues { (_, v) -> v.toPlain() },
-                                        "source" to it.source.value,
-                                        "confidenceScore" to it.confidenceScore,
-                                        "matchQuality" to it.matchQuality.name,
-                                    )
-                                })
-                            }
-                            .onFailure { result.error("DLN_ERROR", it.message, null) }
-                    }
-                    "resetDeferredDeepLink" -> {
-                        DLN.resetDeferredDeepLink()
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-    }
-}
-```
-
-## 6. Use it in your app
-
-```dart
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await DeepLinkNowChannel.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
 
-  final link = await DeepLinkNowChannel.checkDeferredDeepLink();
-  runApp(MyApp(initialPath: link?['path'] as String?));
+  // Never throws: null means it failed (see DeepLinkNow.lastError).
+  await DeepLinkNow.initialize(
+    'dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    config: const DLNConfig(enableLogs: kDebugMode),
+  );
+
+  // Delivered once per install; null on later launches.
+  final link = await DeepLinkNow.checkDeferredDeepLink();
+
+  runApp(MyApp(initialRoute: link?.path ?? '/'));
 }
 ```
 
-Each result carries `source` (`clipboard`, `referrer` or `fingerprint`), `confidenceScore` (0–100) and `matchQuality` (`HIGH`, `MEDIUM`, `LOW`). Exact sources report `100` / `HIGH`. For fingerprint results you choose the threshold; the optional `minConfidence` filter is off by default. See [how fingerprint matching works](/docs/ios#how-fingerprint-matching-works).
+`DLNConfig` options: `enableLogs` (default `false`), `baseUrl` (default `https://deeplinknow.com`), `timeoutMs` and `retryAttempts`. Leave them unset to use the native defaults. `initialize` makes one native init per call and resolves `DLNAppInfo` (`id`, `alias`, `domains`, `primaryDomain`, …), or `null` if it failed. `DeepLinkNow.isInitialized` tells you whether the last `initialize` succeeded.
 
-## Links that open the installed app
+`link.path` is the path the user tapped (`/products/123`) and `link.queryParams` holds the query (`{ref: newsletter}`). Route on them the way you route any other link. With go_router:
 
-Use a Flutter package such as `app_links` to receive Universal Links / App Links, then route on the URL's path and query. To apply the same domain and parsing rules as the native SDKs, add a `parseDeepLink` method to the channel that calls `DeepLinkNow.parseLink` (iOS) or `DLN.parseDeepLink` (Android).
+```dart
+final link = await DeepLinkNow.checkDeferredDeepLink();
+if (link != null) router.go(link.fullPath); // path + query, as tapped
+```
 
-## Need Help?
+For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
+
+### No link, or an error?
+
+`checkDeferredDeepLink` never throws. "No link" and a failure (offline, invalid key, not initialized) both resolve `null`, so the app carries on to its normal start screen. To tell them apart, check `DeepLinkNow.lastError`: a `DLNError` with a `code` (`notInitialized`, `invalidApiKey`, `accountInactive`, `noCredits`, `rateLimited`, `badRequest`, `server`, `network` or `invalidResponse`, the same codes as every DeepLinkNow SDK), plus `status`, `serverMessage`, `message` and `cause` when present. It is cleared by the next successful call.
+
+```dart
+final link = await DeepLinkNow.checkDeferredDeepLink();
+if (link == null && DeepLinkNow.lastError != null) {
+  // Offline or misconfigured. Errors don't use up the first launch,
+  // so the next launch tries again.
+}
+```
+
+It returns a link at most once per install. After a definitive answer (a link, or nothing found) later calls resolve `null` without network, clipboard or referrer access.
+
+Options:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `minConfidence` | unset (off) | Discard fingerprint candidates whose score is below this value. Clipboard and referrer results are exact and never filtered. |
+| `useClipboard` | `true` | iOS only: read the pasteboard first (may show the iOS 16+ paste prompt). Ignored on Android. |
+| `force` | `false` | Ignore the "already checked" flag (useful while testing). |
+
+```dart
+final link = await DeepLinkNow.checkDeferredDeepLink(minConfidence: 50);
+```
+
+`await DeepLinkNow.resetDeferredDeepLink()` clears the first-launch state so you can test again without reinstalling. It is a test call, and it throws a `DLNError` if the native reset fails.
+
+### The result: `DeferredDeepLink`
+
+| Field | Type | Meaning |
+|---|---|---|
+| `path` | `String` | The tapped path up to the first `?`, always starting with `/` |
+| `queryParams` | `Map<String, QueryValue>` | Query parameters (see below) |
+| `fullPath` | `String` | Path and query exactly as tapped |
+| `url` | `String` | Absolute https URL of the link |
+| `source` | `DeferredDeepLinkSource` | `clipboard`, `referrer` or `fingerprint`: which signal produced the answer |
+| `confidenceScore` | `double` | `0`–`100`. Server score for fingerprint results, `100` for clipboard and referrer |
+| `matchQuality` | `MatchQuality` | `HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49 |
+| `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | optional | From the server |
+| `matchDetails` | `MatchDetails?` | Score breakdown (fingerprint results) |
+
+A `QueryValue` is one of:
+
+- `SingleQueryValue` for `?ref=newsletter`
+- `FlagQueryValue` for `?debug` or `?debug=`
+- `MultipleQueryValue` for a repeated key, `?tag=a&tag=b`
+
+Use `.stringValue` for the common case (`link.queryParams['ref']?.stringValue`), `.stringValues` for lists, or switch on the type.
+
+## How fingerprint matching works
+
+- The landing page stores a small description of the click: IP address, device class, OS version, screen size, language, time zone, and the path and query that were tapped.
+- The SDK sends the same kind of description of the device. The server compares it with clicks on your app's link pages from the **last 1 hour** and returns up to 10 candidates, best first, each with a `confidence_score` (0–100) and a `match_quality` (`HIGH`, `MEDIUM`, `LOW`). Candidates below 30 are not returned.
+- An IP match is not required (iCloud Private Relay and carrier NAT often change the IP between browser and app).
+- Missing data never counts as agreement, and the time score decays linearly across the 1-hour claim window.
+- **You choose the threshold.** `minConfidence` is off by default. Use `matchQuality` or `confidenceScore` to decide what to route automatically and what to confirm with the user.
+
+## Handling links that open the app
+
+When the app is already installed, a tap on your link opens it directly (Universal Link / App Link). Receive the URL with a package such as [`app_links`](https://pub.dev/packages/app_links), then parse it with the same rules as the deferred result:
+
+```dart
+final parsed = await DeepLinkNow.parseDeepLink(uri.toString());
+if (parsed != null) router.go(parsed.fullPath);
+```
+
+`parseDeepLink(url)` returns `{path, queryParams, fullPath, url}`, or `null` for URLs that are not on your link domains (exactly `<alias>.deeplinknow.com` or your verified custom domain). It returns a `Future` because Flutter platform channels are asynchronous; the parse itself runs in the native SDK.
+
+### iOS apps on the UIScene lifecycle (Flutter 3.41+ by default)
+
+If links that open the installed app never reach your Dart code on iOS, check these:
+
+1. **Use `app_links` 7.0.0 or later.** Flutter 3.38 added UIScene support, Flutter 3.41 turns it on by default (and migrates an unmodified app delegate automatically), and apps built with Xcode 27 must use it. Once your app is on UIScene, iOS delivers links to the scene delegate, not the app delegate. `app_links` 6.x only hooks the app-delegate callbacks, so links never reach Dart and nothing reports an error. 7.0.0 added UISceneDelegate support. The same applies to any plugin that only calls `addApplicationDelegate`.
+2. **Set `FlutterDeepLinkingEnabled` to `false`** in `ios/Runner/Info.plist` when a plugin handles your links. Otherwise the engine hands links it doesn't claim back to iOS, and the user bounces from the app to Safari and back.
+3. **Subscribe to `uriLinkStream` synchronously at the top of `initState`**, before any `await`. The stream doesn't replay links that arrived before you subscribed. Queue the link until your startup is ready.
+4. **Put a timeout on every external `await` in startup** (for example `FirebaseMessaging.getInitialMessage()`), and drain the link queue in a `finally` block, so one slow call can't hold the link forever.
+
+## API
+
+All members are static on `DeepLinkNow`.
+
+| Member | Returns | Notes |
+|---|---|---|
+| `initialize(apiKey, {config})` | `Future<DLNAppInfo?>` | One native init. `null` on failure, never throws |
+| `isInitialized` | `bool` | Whether the last `initialize` succeeded |
+| `appInfo` | `DLNAppInfo?` | App id, alias, link domains, primary domain |
+| `checkDeferredDeepLink({minConfidence, useClipboard, force})` | `Future<DeferredDeepLink?>` | `null` = no link or failure; never throws |
+| `resetDeferredDeepLink()` | `Future<void>` | Clears the first-launch state, for testing |
+| `findDeferredUser()` | `Future<MatchResponse?>` | Every fingerprint candidate from `/api/v1/sdk/match`, in server order, as typed classes. `null` on failure |
+| `getReferrerData()` | `Future<ReferrerData?>` | Android only: the raw Install Referrer result. `null` on iOS |
+| `checkClipboard()` | `Future<String?>` | The clipboard text if it is one of your links. May show the iOS paste prompt |
+| `hasDeepLinkToken()` | `Future<bool>` | Cheap check that shows no paste prompt |
+| `parseDeepLink(url)` | `Future<ParsedDeepLink?>` | Validate and parse a URL on your link domains |
+| `isValidDomain(host)` | `Future<bool>` | Whether the host is one of your link domains |
+| `lastError` | `DLNError?` | Last failure of `initialize`, `checkDeferredDeepLink` or `findDeferredUser` |
+| `sdkVersion` | `String` | `"1.3.0"` |
+
+Not in the Flutter plugin: a link stream for direct opens (use `app_links`) and `createDeepLink`. Web, macOS, Windows and Linux aren't supported: there, every call resolves `null` or `false` and `lastError` is `notInitialized`.
+
+## FlutterFlow
+
+1. In **Custom Code → Dependencies** (or the action's **Pubspec Dependencies** field), add `deeplinknow: ^1.3.0`.
+2. Create a custom action `getDeferredDeepLink` with one `String` argument `apiKey` and a nullable `String` return type:
+
+```dart
+// Automatic FlutterFlow imports
+import '/flutter_flow/flutter_flow_theme.dart';
+import '/flutter_flow/flutter_flow_util.dart';
+import '/custom_code/actions/index.dart';
+import 'package:flutter/material.dart';
+// Begin custom action code
+// DO NOT REMOVE OR MODIFY THE CODE ABOVE!
+
+import 'package:deeplinknow/deeplinknow.dart';
+
+/// Returns the path and query the user tapped before installing (e.g.
+/// "/products/123?ref=newsletter"), or null. Never throws.
+Future<String?> getDeferredDeepLink(String apiKey) async {
+  if (!DeepLinkNow.isInitialized) {
+    await DeepLinkNow.initialize(apiKey);
+  }
+  final link = await DeepLinkNow.checkDeferredDeepLink();
+  return link?.fullPath;
+}
+```
+
+3. Run it from the **On Page Load** actions of your initial page, save the result to a page or app state variable, and navigate when it isn't empty.
+
+Test on a real device or emulator build. The plugin has no web implementation, so FlutterFlow's web-based Test and Run modes return `null`. Universal Links and App Links also need the Associated Domains entitlement and the intent filter above in the native project.
+
+## Testing your integration
+
+- A link is delivered once per install. To try again without reinstalling, call `DeepLinkNow.resetDeferredDeepLink()` or pass `force: true`.
+- iOS: open your link in Safari on the device, tap the App Store button (this copies the link), then run the app from Xcode.
+- Android: test the Install Referrer with an internal test track install from a link. A sideloaded build has no referrer and falls back to fingerprint matching.
+- `DLNConfig(enableLogs: true)` turns on the native debug logs (`[DeepLinkNow]` in the Xcode console, tag `DLN` in Logcat). The API key is never logged.
+- Universal Links not opening the app: check Apple's CDN copy of your association file at `https://app-site-association.cdn-apple.com/a/v1/<your domain>`, or run the free [AASA validator](/tools/aasa-validator).
+- `lastError` says "native plugin is not available": stop the app and rebuild it after adding the package.
+
+## Privacy
+
+The plugin adds nothing to what the native SDKs collect: the device fields used for matching (platform, OS version, device model, screen size, language, time zone, an app-scoped install ID), sent only to DeepLinkNow, and no advertising identifiers. It adds no Android permissions. See the [iOS](/docs/ios) and [Android](/docs/android) docs for the App Store privacy labels and the Play Data safety form.
+
+## API endpoints used
+
+| Endpoint | Key | Used by |
+|---|---|---|
+| `POST /api/v1/sdk/init` | public | `initialize` (one call per `initialize`) |
+| `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` on Android |
+| `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+
+## Support
 
 - Email: support@deeplinknow.com
-- [iOS SDK](/docs/ios) · [Android SDK](/docs/android)
+- Package: [pub.dev/packages/deeplinknow](https://pub.dev/packages/deeplinknow)
+
+---
+Source: https://deeplinknow.com/docs/mcp
+
+# DeepLinkNow MCP server for coding agents
+
+## Overview
+
+[`@deeplinknow/mcp`](https://www.npmjs.com/package/@deeplinknow/mcp) is an MCP server for coding agents such as Claude Code, Cursor, Claude Desktop, VS Code and Windsurf. With it installed, the agent can read DeepLinkNow's current docs, check your link domain and plan a migration while it writes the integration, instead of working from memory.
+
+It covers iOS, Android, React Native, Expo and Flutter apps. Like DeepLinkNow itself, it does deep linking only: it never adds attribution, ad tracking or advertising IDs to your app.
+
+The server runs on your machine over stdio and needs Node.js 20 or later. The source is MIT licensed: [github.com/deeplinknow/dln-mcp](https://github.com/deeplinknow/dln-mcp).
+
+## Install
+
+### Claude Code
+
+```sh
+claude mcp add deeplinknow -- npx -y @deeplinknow/mcp
+```
+
+With the link tools (`--scope user` keeps the key out of the project's `.mcp.json`):
+
+```sh
+claude mcp add deeplinknow --scope user --env DEEPLINKNOW_API_KEY=YOUR_PRIVATE_KEY -- npx -y @deeplinknow/mcp
+```
+
+### Cursor
+
+Add to `.cursor/mcp.json` in the project, or `~/.cursor/mcp.json` for every project:
+
+```json
+{
+  "mcpServers": {
+    "deeplinknow": {
+      "command": "npx",
+      "args": ["-y", "@deeplinknow/mcp"],
+      "env": { "DEEPLINKNOW_API_KEY": "${env:DEEPLINKNOW_API_KEY}" }
+    }
+  }
+}
+```
+
+Leave out `env` if you don't need the link tools.
+
+### Claude Desktop
+
+Open **Settings → Developer → Edit Config**, which opens `claude_desktop_config.json` (`~/Library/Application Support/Claude/` on macOS, `%APPDATA%\Claude\` on Windows), and add:
+
+```json
+{
+  "mcpServers": {
+    "deeplinknow": {
+      "command": "npx",
+      "args": ["-y", "@deeplinknow/mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. To use the link tools, add `"env": { "DEEPLINKNOW_API_KEY": "YOUR_PRIVATE_KEY" }` next to `args`.
+
+### VS Code
+
+Add to `.vscode/mcp.json`. VS Code asks for the key once and stores it securely:
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "deeplinknow-api-key",
+      "description": "DeepLinkNow private API key (dln_priv_…), only for list_links and create_link. Leave empty otherwise.",
+      "password": true
+    }
+  ],
+  "servers": {
+    "deeplinknow": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@deeplinknow/mcp"],
+      "env": { "DEEPLINKNOW_API_KEY": "${input:deeplinknow-api-key}" }
+    }
+  }
+}
+```
+
+### Windsurf
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "deeplinknow": {
+      "command": "npx",
+      "args": ["-y", "@deeplinknow/mcp"],
+      "env": { "DEEPLINKNOW_API_KEY": "YOUR_PRIVATE_KEY" }
+    }
+  }
+}
+```
+
+Leave out `env` if you don't need the link tools.
+
+### Other clients
+
+Any MCP client that runs stdio servers: command `npx`, arguments `-y @deeplinknow/mcp`.
+
+## What to ask
+
+```text
+Add DeepLinkNow deferred deep linking to this app. Our link domain is myapp.deeplinknow.com.
+```
+
+The agent reads the setup guide for your platform, installs the SDK, adds the Associated Domains entitlement and the Android intent filter, calls `checkDeferredDeepLink()` on launch and routes the result through your router. Then it checks your domain.
+
+Other requests it handles:
+
+- "Check myapp.deeplinknow.com" (or your custom domain). It validates `apple-app-site-association` against Apple's CDN copy and `assetlinks.json` against Google's Digital Asset Links API, and looks the domain up on the EasyPrivacy and AdGuard block lists. It works for any domain, including the one you use today.
+- "We're on Firebase Dynamic Links. Move us to DeepLinkNow." Branch, AppsFlyer and Adjust work too. You get a plan and a code diff for your platform. If you use one of those for attribution, the plan keeps it for that and moves only the deep links.
+- "This match came back MEDIUM with a score of 58. Should we route it?" The agent explains each part of the score and what a `minConfidence` of 50 or 75 would do. The threshold stays your decision.
+
+## Tools
+
+| Tool | Needs a key | What it does |
+|---|---|---|
+| `get_setup_guide` | No | Setup steps and code for `ios`, `android`, `react-native`, `expo` or `flutter`, from these docs (a bundled copy when offline) |
+| `search_docs` | No | Searches the full DeepLinkNow docs and returns the matching sections with links |
+| `check_domain` | No | Checks a domain's `apple-app-site-association` (and Apple's CDN copy), `assetlinks.json` (and Google's verdict), and whether the domain or its CNAME chain is on the EasyPrivacy or AdGuard block lists |
+| `explain_match_result` | No | Explains a fingerprint match's `confidence_score` and `match_quality`, and how to choose `minConfidence` |
+| `migrate_from` | No | A migration plan and code diff from `firebase-dynamic-links`, `branch`, `appsflyer` or `adjust` |
+| `list_links` | Private key, paid plan | Lists the app's links (dashboard, API and on-demand), with search and paging |
+| `create_link` | Private key, paid plan | Creates a link with a custom path, link-page text, social preview, metadata or campaign |
+
+It also exposes `deeplinknow://llms.txt` and `deeplinknow://docs/{page}` as resources, and two prompts: `add_deferred_deep_linking` and `migrate_to_deeplinknow`.
+
+The first `check_domain` run downloads the block lists (about 22 MB). Later checks in the same session reuse them for a day.
+
+## Keys
+
+You don't need an account or a key for the first five tools.
+
+`list_links` and `create_link` call the [management API](/docs/api/deeplinks), which needs your app's **private** key (`dln_priv_…`, from the app's API Keys page in the dashboard) as `DEEPLINKNOW_API_KEY`. The management API is on paid plans ([pricing](/pricing)). A private key acts on one app.
+
+You never have to create links: any path on your link domain already works. The link tools are for listing links, or for creating one with a custom preview or campaign.
+
+The private key stays in your MCP config. Your app only ever contains the public key (`dln_pub_…`). The server refuses a public key for the link tools without sending it, and it never prints, logs or returns the private key: it sends it only in the `x-api-key` header to the DeepLinkNow API.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DEEPLINKNOW_API_KEY` | unset | Your app's private key, only for `list_links` and `create_link` |
+| `DEEPLINKNOW_API_URL` | `https://deeplinknow.com` | API base URL. Must be https (http only for localhost) |
+
+## What it doesn't do
+
+- **It never writes files or runs commands.** The server only returns text to the agent. Your agent makes the code changes, through its own tools and permission prompts.
+- **It stores nothing on disk.** Docs, block lists and check results are cached in memory while the server runs (docs for an hour, block lists for a day, domain results for 5 minutes).
+- **No telemetry.** It collects no usage data.
+- **It sends nothing about your code.** `get_setup_guide`, `search_docs`, `migrate_from` and the resources fetch public docs from `https://deeplinknow.com`. `check_domain` fetches only the domain you name (over https, refusing private and local addresses), Apple's CDN, Google's Digital Asset Links API and the four public block lists. `explain_match_result` makes no requests. Only the link tools send your key and the link fields, to the DeepLinkNow API.
+
+## Keep agents on track
+
+Paste this into your repo's `AGENTS.md` or `CLAUDE.md` so every session follows the same rules:
+
+```markdown
+## Deep linking: DeepLinkNow
+
+- Link domain: myapp.deeplinknow.com. Any path and query on it is a deep link; nothing has to be created first.
+- The app contains only the public key (dln_pub_…). Never commit or ship the private key.
+- Initialize once at launch. Call checkDeferredDeepLink() once on launch and route to link.path with link.queryParams. Send links that open the installed app through the SDK's parse method and the same router.
+- Fingerprint matches are scored (confidenceScore, matchQuality). minConfidence is off by default; decide how to treat MEDIUM and LOW.
+- Use the DeepLinkNow MCP tools (get_setup_guide, check_domain, search_docs) instead of guessing.
+```
+
+## Support
+
+- Email: support@deeplinknow.com
+- Package: [npmjs.com/package/@deeplinknow/mcp](https://www.npmjs.com/package/@deeplinknow/mcp)
+- Source: [github.com/deeplinknow/dln-mcp](https://github.com/deeplinknow/dln-mcp)
+
+---
+Source: https://deeplinknow.com/docs/firebase-migration
+
+# Migrating from Firebase Dynamic Links
+
+Firebase Dynamic Links shut down on 25 August 2025: every `page.link` URL now returns a 404, and the `.page.link` domains are gone. Nobody can bring those URLs back, DeepLinkNow included. This guide moves the *behaviour* to DeepLinkNow: links that open your app if it's installed, survive an install if it isn't, and hand your app the original link on first launch.
+
+There are two ways to do it. Pick one, or start with the first and move to the second over time.
+
+## Option 1: keep your long links, change the host
+
+If you built Dynamic Links in code as long links, like
+
+```
+https://yourapp.page.link/?link=https%3A%2F%2Fyourapp.com%2Finvite%2F8Fk2&apn=com.yourapp&ibi=com.yourapp.ios
+```
+
+the same URL works on your DeepLinkNow domain with only the host changed:
+
+```
+https://yourapp.deeplinknow.com/?link=https%3A%2F%2Fyourapp.com%2Finvite%2F8Fk2&apn=com.yourapp&ibi=com.yourapp.ios
+```
+
+DeepLinkNow accepts any path and query on your domain without creating links first, and passes the query through untouched. Your app gets the Firebase-style `link` parameter back, already decoded, in `queryParams.link`, both when the link opens the installed app and after an install.
+
+All long links on `/` count as **one** link against your plan's link limit, because the limit counts distinct paths and ignores the query string.
+
+What's different from Firebase:
+
+- `apn`, `ibi`, `isi` and `efr` aren't needed. DeepLinkNow knows your app from the domain, and it sends users to the App Store or Google Play listing you set in the dashboard. They're harmless to leave in.
+- `afl`, `ifl` and `ofl` (fallback URLs) aren't followed. Phones go to the store; desktop shows a QR code and store buttons.
+- `st`, `sd` and `si` (social preview) aren't read from the URL. Set the preview title, description and image in the dashboard (paid plans).
+- Short links (`yourapp.page.link/abc`) have no equivalent code to keep: use a path instead (Option 2).
+
+### React Native
+
+Before (`@react-native-firebase/dynamic-links`):
+
+```typescript
+const initial = await dynamicLinks().getInitialLink();
+if (initial) handle(initial.url);
+dynamicLinks().onLink((link) => handle(link.url));
+```
+
+After (`@deeplinknow/react-native`):
+
+```typescript
+import DeepLinkNow from "@deeplinknow/react-native";
+import { Linking } from "react-native";
+
+await DeepLinkNow.initialize("dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+
+const linkParam = (q: Record<string, unknown>) =>
+  typeof q.link === "string" ? q.link : null;
+
+// After an install: the link the user tapped before installing.
+const deferred = await DeepLinkNow.checkDeferredDeepLink();
+const fromInstall = deferred && linkParam(deferred.queryParams);
+if (fromInstall) handle(fromInstall);
+
+// App already installed: the Universal Link / App Link that opened it.
+const onUrl = (url: string | null) => {
+  const parsed = url ? DeepLinkNow.parseDeepLink(url) : null;
+  const value = parsed && linkParam(parsed.queryParams);
+  if (value) handle(value);
+};
+Linking.getInitialURL().then(onUrl);
+Linking.addEventListener("url", ({ url }) => onUrl(url));
+```
+
+### iOS (Swift)
+
+```swift
+import DeepLinkNow
+
+await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"))
+
+// After an install
+if let deferred = await DeepLinkNow.checkDeferredDeepLink(),
+   let value = deferred.queryParams["link"]?.stringValue {
+    handle(URL(string: value))
+}
+
+// App already installed (SwiftUI)
+.onOpenURL { url in
+    if let link = DeepLinkNow.parseLink(url),
+       let value = link.queryParams["link"]?.stringValue {
+        handle(URL(string: value))
+    }
+}
+```
+
+### Android (Kotlin)
+
+```kotlin
+// After an install (inside a coroutine; it returns a Result and never throws)
+DLN.checkDeferredDeepLink().onSuccess { deferred ->
+    (deferred?.queryParams?.get("link") as? QueryValue.Single)?.value?.let(::handle)
+}
+
+// App already installed (onCreate and onNewIntent)
+intent.data?.toString()?.let { url ->
+    DLN.parseDeepLink(url)?.let { link ->
+        (link.queryParams["link"] as? QueryValue.Single)?.value?.let(::handle)
+    }
+}
+```
+
+## Option 2: put the path in the link
+
+Firebase needed the `link=` wrapper because `page.link` wasn't your domain. On DeepLinkNow it is. Instead of wrapping `https://yourapp.com/invite/8Fk2`, use the path directly:
+
+```
+https://yourapp.deeplinknow.com/invite/8Fk2
+```
+
+Your app gets `path: "/invite/8Fk2"` and any query parameters, and routes on them. This is shorter, reads better in a message, and works with your own domain (`go.yourapp.com/invite/8Fk2`) on paid plans.
+
+Each distinct path counts once against your link limit, so put per-user values in the query (`/invite?code=8Fk2`) if you generate a lot of them.
+
+## Checklist
+
+1. Create the app in the DeepLinkNow dashboard and enter your iOS Team ID and Bundle ID and your Android package name and SHA-256 fingerprints. DeepLinkNow serves `apple-app-site-association` and `assetlinks.json` for your domain.
+2. Add `applinks:yourapp.deeplinknow.com` to Associated Domains (iOS) and an `autoVerify` https intent filter for it (Android). With Expo, the config plugin does both.
+3. Replace the Firebase Dynamic Links SDK calls as shown above, and remove the `firebase_dynamic_links` / `@react-native-firebase/dynamic-links` dependency.
+4. Change the host in the code that builds links (Option 1), or switch to paths (Option 2).
+5. Check your domain with the free [deep link domain checker](/tools).
+
+## What DeepLinkNow doesn't replace
+
+- **Old `page.link` URLs.** They're dead. Update links you control (emails, QR codes, your site), and accept that old shared links won't open.
+- **Firebase Auth email-link sign-in.** It used Dynamic Links for the sign-in email; Firebase's own documentation covers moving that flow off Dynamic Links. DeepLinkNow doesn't handle sign-in links.
+- **Analytics.** Firebase reported clicks into Google Analytics. DeepLinkNow shows click and install counts, and hands your app the link so you can send it to your own analytics.
 
 ---
 Source: https://deeplinknow.com/docs/integration-checklist
@@ -1023,9 +1537,9 @@ These files are served from your saved settings and cached for up to 5 minutes.
 ## SDK installation
 
 - [ ] **React Native / Expo**: `npx expo install @deeplinknow/react-native` (development build, not Expo Go) or `npm install @deeplinknow/react-native` + `pod install`
-- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.2'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
-- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.2.0")` (the library declares `INTERNET` itself)
-- [ ] **Flutter**: there is no Flutter SDK; follow the [Flutter integration guide](/docs/flutter), which wraps the native SDKs
+- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.3'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
+- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.3.0")` (the library declares `INTERNET` itself)
+- [ ] **Flutter**: `flutter pub add deeplinknow` (iOS 13+, Android `minSdk` 24; rebuild the app after adding it)
 - [ ] iOS: Associated Domains `applinks:myapp.deeplinknow.com` (and your custom domain)
 - [ ] Android: `autoVerify` https intent filter for `myapp.deeplinknow.com` (and your custom domain)
 - [ ] No ATT prompt, IDFA, or advertising-ID permission is needed for DeepLinkNow
@@ -1106,7 +1620,8 @@ function route(path: string, query: Record<string, string | true | string[]>) {
 ## Need Help?
 
 - [Quick Start](/docs/quickstart)
-- [iOS](/docs/ios), [Android](/docs/android), [React Native](/docs/react-native)
+- [iOS](/docs/ios), [Android](/docs/android), [React Native](/docs/react-native), [Flutter](/docs/flutter)
+- [MCP server for coding agents](/docs/mcp)
 - Email: support@deeplinknow.com
 
 ---
@@ -1114,19 +1629,19 @@ Source: https://deeplinknow.com/pricing
 
 # DeepLinkNow pricing
 
-Prices in USD, billed monthly. Cancel any time: paid plans keep their features until the end of the billing period.
+Prices in USD. Startup and Growth are billed monthly: cancel any time, and paid plans keep their features until the end of the billing period. Enterprise is billed annually, by invoice.
 No free trial is needed: the Developer plan is free, with no card.
 
 ## Developer: $0/month
 
 Deep links and deferred deep links for one app, free.
 
-- 15k SDK monthly active users
+- 25k SDK monthly active users
 - 1k deep links (distinct paths, on-demand included)
 - Single app on yourapp.deeplinknow.com
 - Just you (1 seat)
 - Universal Links, App Links and deferred deep links
-- iOS, Android and React Native SDKs
+- iOS, Android, React Native and Flutter SDKs
 - Click and install counts
 - Community support on Discord
 
@@ -1161,21 +1676,24 @@ For larger apps, or several apps under one account.
 - Management API (50k requests/mo)
 - Email support
 
-## Enterprise: Custom
+## Enterprise: Starting at $500/month, billed annually
 
-Custom limits, a contract and priority support.
+For companies whose IT, legal and procurement teams have to sign off.
 
-- Custom MAU, link and API volume, including per-minute rate limits
-- Unlimited team members
 - Everything in Growth
-- Custom contract and invoicing
+- Custom MAU, link and API volume, including per-minute rate limits
+- Pay by invoice, against your purchase order
+- Unlimited team members
+- Single sign-on with Microsoft Entra ID, Okta or Google Workspace, and SSO required for your domain
+- Audit log of who changed what in your workspace (coming soon)
+- Data processing agreement (DPA)
 - Priority support
 
 ## Every plan, side by side
 
 | | Developer | Startup | Growth | Enterprise |
 |---|---|---|---|---|
-| SDK monthly active users | 15,000 | 100,000 | 500,000 | Custom |
+| SDK monthly active users | 25,000 | 100,000 | 500,000 | Custom |
 | Deep links (distinct paths, all-time, on-demand included) | 1,000 | 10,000 | 50,000 | Custom |
 | On-demand links: any path on your domain works, no setup | Yes | Yes | Yes | Yes |
 | Apps | 1 | 3 | Unlimited | Unlimited |
@@ -1183,7 +1701,7 @@ Custom limits, a contract and priority support.
 | Custom domains: your links on go.yourapp.com (one per app) | No | 3 | Unlimited | Unlimited |
 | Universal Links + App Links, hosted .well-known files | Yes | Yes | Yes | Yes |
 | Deferred deep links (Install Referrer, clipboard, fingerprint) | Yes | Yes | Yes | Yes |
-| iOS, Android and React Native SDKs | Yes | Yes | Yes | Yes |
+| iOS, Android, React Native and Flutter SDKs | Yes | Yes | Yes | Yes |
 | Your branding on the link page (DLN branding removed) | No | Yes | Yes | Yes |
 | Custom title, subtitle and button text, per app or per link | No | Yes | Yes | Yes |
 | Custom social previews (title, description, image) for iMessage, Slack, WhatsApp, X and more | No | Yes | Yes | Yes |
@@ -1194,26 +1712,65 @@ Custom limits, a contract and priority support.
 | API requests per minute, per key | 600 (SDK key only) | 600 | 1,200 | Custom |
 | Sign in with an email code, Google or GitHub | Yes | Yes | Yes | Yes |
 | Support | Discord | Email | Email | Priority |
+| Single sign-on (Entra ID, Okta, Google Workspace), SSO required | No | No | No | Yes |
+| Audit log | No | No | No | Coming soon |
+| Billing | Free | Monthly, by card | Monthly, by card | Invoice, billed annually |
+| Purchase orders | No | No | No | Yes |
 
 ---
 Source: https://deeplinknow.com/compare
 
-# DeepLinkNow compared with Branch, Airbridge and AppsFlyer
+# DeepLinkNow compared with every deep linking vendor
 
-As of October 19, 2026. Each vendor's page links the public source for every claim.
+As of October 21, 2026. Each vendor's page links the public source for every claim, with the date it was checked.
 
-| | DeepLinkNow | Branch | Airbridge | AppsFlyer |
-|---|---|---|---|---|
-| Free plan with deferred deep links | Yes, up to 15,000 MAU | No | No | No |
-| Cheapest plan with a custom domain | $49/mo | $199/mo | From $40/mo | Custom price |
-| Links work without creating them first | Yes, any path | Long links only | No | No |
-| Reads advertising IDs | Never | By default | By default | Yes |
-| On ad-blocker lists | No | Yes | Yes | Yes |
-| Needs a sales call | Never | Essentials and Enterprise | Above Core | Every paid tier |
+| | Free plan with deferred deep links | Cheapest paid plan | Your own domain | Bills on | Any path works without setup | Reads advertising IDs | Sales call |
+|---|---|---|---|---|---|---|---|
+| DeepLinkNow | Yes, up to 25,000 MAU | $49/mo | $49/mo (Startup) | Monthly active users | Yes, no prefix | Never | Enterprise only |
+| Branch | No, a 30-day trial with a card | $39/mo (Intro) | $199/mo (Activation Basics) | Volume credits, links and clicks | Long links only | By default | Essentials and Enterprise |
+| AppsFlyer | No (Zero plan) | Custom price | Advanced tier, custom price | Not published | No, short links are created | IDFA, with ATT support on | Every paid tier |
+| Adjust | In TrueLink Base | Vendr: from about $10.8K a year | brand.go.link subdomain | Attributions | No, links are created | By default (Android AD_ID) | Not checkable |
+| Singular | Yes, 15,000 paid conversions | $0.05 per conversion (Growth) | Growth and up | Paid conversions | No, links are created | IDFA when allowed | Growth and Enterprise |
+| Kochava | Yes, 10,000 conversions | From $500/mo (Foundation) | From $500/mo, via your CSM | Attributed conversions | No, SmartLinks are created | IDFA and GAID modules | Trial form for paid plans |
+| Airbridge | No, a 30-day trial | From $40/mo (Core) | From $40/mo, dedicated subdomain | Data points | No, links are created | By default | Above Core |
+| Linkrunner | Yes, 25,000 attributed installs | From $0.010 per install | Your subdomain, part of setup | Attributed installs | Any query on your subdomain | GAID and IDFA | Enterprise only |
+| Detour | Yes, 1,500 clicks a month | $19/mo (70,000 clicks) | $79/mo (Scale) | Link clicks | After a fixed /<app_hash>/ segment | No | Enterprise only |
+| ChottuLink | Yes, 25,000 MAU | $19/mo (75,000 MAU) | $39/mo (Growth) | Monthly active users | No, links are created | Not stated | Enterprise only |
+| WarpLink | Yes, 10,000 clicks | $19/mo (100,000 clicks) | Free for 90 days, then $19/mo | Tracked clicks | No, links are created | No | None |
+| Dynalinks | No, Pro only | $14.99/mo per project | $14.99/mo (Pro) | Projects | No; Firebase ?link= long links on Pro | No | Enterprise only |
+| Flinku | Yes, 10,000 clicks | $12/mo (Indie) | $12/mo (Indie) | Links and clicks | Catch-all, from $12/mo | Not stated | None |
+| Rift | Yes, 50 links | $18/mo (Pro) | Free (one) | Links and events | No, links are created | Not stated | For SSO or larger plans |
+| LinkTrace | One-time 1,000 installs | $9.99/mo (Growth) | linktrace.in subdomain, $29.99/mo | Links and attributed installs | No, links are created | No | None |
+| AppsOnAir | No | $34.98/mo (Pro with AppLink) | +$19.99/mo add-on | Plan plus modules | No, links are created | Not stated | Enterprise only |
+| URLgenius | No | $0.02 per click (Growth) | +$49/mo on Growth | Clicks | No, links are created | No (no SDK) | Custom plan (deferred links) |
+
+## Attribution platforms
+
+Measurement platforms with deep links inside. If you need attribution, these are the real choice. If you don't, you pay for it anyway, in money, advertising IDs or both.
 
 - [DeepLinkNow vs Branch](https://deeplinknow.com/compare/branch.md): Branch dropped its free tier. Custom domains start at $199/mo.
-- [DeepLinkNow vs Airbridge](https://deeplinknow.com/compare/airbridge.md): An MMP from $40/mo. Your deferred link waits on the ATT prompt.
 - [DeepLinkNow vs AppsFlyer](https://deeplinknow.com/compare/appsflyer.md): No deferred deep links on the free plan. Paid tiers need a sales call.
+- [DeepLinkNow vs Adjust](https://deeplinknow.com/compare/adjust.md): Attribution first. Deferred links may be limited after an ATT opt-out.
+- [DeepLinkNow vs Singular](https://deeplinknow.com/compare/singular.md): Free to 15,000 paid conversions. Every deep link is an attribution link.
+- [DeepLinkNow vs Kochava](https://deeplinknow.com/compare/kochava.md): Free attribution with deferred links. Universal Links and your domain start at $500/mo.
+- [DeepLinkNow vs Airbridge](https://deeplinknow.com/compare/airbridge.md): An MMP from $40/mo. Your deferred link waits on the ATT prompt.
+- [DeepLinkNow vs Linkrunner](https://deeplinknow.com/compare/linkrunner.md): A low-cost MMP, free to 25,000 attributed installs. It reads advertising IDs.
+
+## Developer-first deep linking tools
+
+Smaller tools that do deep links without the full attribution suite, most of them started after Firebase Dynamic Links shut down. Several of them start cheaper than I do, and the pages say so.
+
+- [DeepLinkNow vs Detour](https://deeplinknow.com/compare/detour.md): 1,500 free clicks, custom domains at $79/mo, and no match score in the app.
+- [DeepLinkNow vs ChottuLink](https://deeplinknow.com/compare/chottulink.md): The same 25,000 MAU free tier as mine, cheaper paid plans, and links you create first.
+- [DeepLinkNow vs WarpLink](https://deeplinknow.com/compare/warplink.md): Strong tooling, billed per click, and no iOS clipboard step.
+- [DeepLinkNow vs Dynalinks](https://deeplinknow.com/compare/dynalinks.md): No deferred links on the free plan. Pro is $14.99 per project.
+- [DeepLinkNow vs Flinku](https://deeplinknow.com/compare/flinku.md): Catch-all routing from $12/mo. Past the click cap, links stop redirecting.
+- [DeepLinkNow vs Rift](https://deeplinknow.com/compare/rift.md): Cheap and new. No fingerprint fallback, no React Native SDK.
+- [DeepLinkNow vs LinkTrace](https://deeplinknow.com/compare/linktrace.md): $9.99 to start, no SDK, fingerprint only. Universal Links need the $29.99 plan.
+- [DeepLinkNow vs AppsOnAir](https://deeplinknow.com/compare/appsonair.md): AppLink is a paid module from $34.98/mo, and a custom domain is $19.99 more.
+- [DeepLinkNow vs URLgenius](https://deeplinknow.com/compare/urlgenius.md): Billed per click. Deferred links start at $199/mo on its Custom plan.
+
+- [Firebase Dynamic Links alternative](https://deeplinknow.com/firebase-dynamic-links-alternative): Google shut it down on August 25, 2025. What DeepLinkNow does in its place, and what it doesn't.
 
 DeepLinkNow is not affiliated with the vendors compared here.
 
@@ -1228,26 +1785,58 @@ I used Branch on a real startup. It worked, mostly, until the bill and the ad bl
 
 | | DeepLinkNow | Branch | Sources |
 |---|---|---|---|
-| Free plan | Free up to 15,000 monthly active users. No card. | None. A 30-day trial needs a work email and a card, then moves to Intro at $39/mo. | [1] [2] |
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | None. A 30-day trial needs a work email and a card, then moves to Intro at $39/mo. | [1] [2] |
 | Usage over the plan | Links and SDK calls keep working. I'll ask you to upgrade. | Billed per extra volume credit, link and click, uncapped. | [3] |
 | Custom domain | $49/mo (Startup) | Activation Basics, $199/mo | [4] |
 | iOS clipboard handoff | Included on every plan, free one too | NativeLink, a premium feature | [5] |
 | Making links | Any path on your domain is already a link. Nothing to create. | Created in the dashboard or API, or long links with /a/key_live_… on a custom domain. Routing by path needs $deeplink_path and custom logic. | [6] [7] |
 | Advertising IDs | Never read. No ATT prompt. | Collected by default (FULL protection level: advertising IDs and device IDs) | [8] |
 | Ad-blocker lists | Not on any of them | Branch domains and its web SDK are on AdGuard and EasyPrivacy, and EasyPrivacy blocks about 4,195 Branch customer link domains. | [9] [10] |
-| Typical contract | $0, $49 or $149 a month, published, billed monthly | Median about $55K a year (Vendr, 61 deals) | [11] |
+| Typical contract | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Median about $55K a year (Vendr, 61 deals) | [11] |
+
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Your own domain from $49 a month on Startup, set up in the dashboard.
+- No DeepLinkNow domain is on AdGuard or EasyPrivacy, so ad blockers don't stop the link page.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Free AASA, assetlinks.json and ad-block list checkers, no sign-up needed.
 
 ## Pick Branch if…
 
 - You need attribution, ad network integrations and campaign analytics, and someone else's budget pays for it.
 - You want Journeys web banners and a marketing team running links without developers.
 
+If you just need links that open the right screen after install, don't pay for the rest.
+
+## The pricing math
+
+Branch's Intro plan is $39 a month with 5,000 volume credits, 500 links or QR codes and 25,000 clicks. Past that it bills $0.01 a click, $0.05 a link and $0.05 a volume credit, with no cap. I bill on monthly active users instead. [1] [3]
+
+Say your links get 40,000 clicks a month. On Intro that's $39 plus 15,000 extra clicks at $0.01, so $189 before any volume-credit overage, and still no custom domain. On DeepLinkNow it's free while the app stays under 25,000 monthly users and 1,000 distinct paths, or $49 on Startup with your own domain. If your links get under 25,000 clicks and you don't need a custom domain, Intro's $39 is closer to my price than this example suggests.
+
 ## Switching from Branch
 
-1. Add the DLN SDK next to Branch and ship it.
+1. Add the DLN SDK next to the one you have and ship it.
 2. Point your link domain at DLN. Paths on it work straight away.
-3. Replace Branch's link callback with checkDeferredDeepLink() on first launch.
+3. Read the link with checkDeferredDeepLink() on first launch.
 4. Remove the Branch SDK in the next release.
+
+## Questions
+
+### How does Branch's pricing compare with DeepLinkNow's?
+
+Branch's Intro plan is $39 a month with 5,000 volume credits, 500 links or QR codes and 25,000 clicks. Past that it bills $0.01 a click, $0.05 a link and $0.05 a volume credit, with no cap. I bill on monthly active users instead. Say your links get 40,000 clicks a month. On Intro that's $39 plus 15,000 extra clicks at $0.01, so $189 before any volume-credit overage, and still no custom domain. On DeepLinkNow it's free while the app stays under 25,000 monthly users and 1,000 distinct paths, or $49 on Startup with your own domain. If your links get under 25,000 clicks and you don't need a custom domain, Intro's $39 is closer to my price than this example suggests.
+
+### When is Branch the better choice?
+
+You need attribution, ad network integrations and campaign analytics, and someone else's budget pays for it. You want Journeys web banners and a marketing team running links without developers.
+
+### Can I run DeepLinkNow next to Branch?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
 
 ## Sources
 
@@ -1266,6 +1855,323 @@ I used Branch on a real startup. It worked, mostly, until the bill and the ad bl
 DeepLinkNow is not affiliated with the vendors compared here.
 
 ---
+Source: https://deeplinknow.com/compare/appsflyer
+
+# DeepLinkNow vs AppsFlyer
+
+Mobile measurement platform (MMP). Facts as of October 19, 2026, each with a public source.
+
+AppsFlyer is the biggest attribution platform there is. It's built for paid user acquisition, and it's very good at that. Deferred deep linking is one feature inside it, and since 2026 it isn't on the free plan at all.
+
+| | DeepLinkNow | AppsFlyer | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | Zero plan: links and QR codes, but no deferred deep linking since its 2026 update | [1] [2] |
+| Cheapest plan with deferred deep links | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Deep Linking Standard, custom price | [1] |
+| Sales call | Only for Enterprise (from $500/mo). Developer, Startup and Growth are self-serve. | Every paid tier is "Request a demo" | [1] |
+| Custom domain | $49/mo (Startup) | Branded domains from the Advanced tier, custom price | [1] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Short links are created through the OneLink API (each gets an ID of up to 50 characters) or the dashboard. API links don't show up in the dashboard list. | [5] |
+| Ad-blocker lists | Not on any of them | 54 rules on AdGuard Tracking Protection, including onelink.me and the OneLink Smart Script | [3] |
+| Advertising IDs | Never read. No ATT prompt. | With ATT support on, the iOS SDK collects the IDFA on iOS 14.5 and later | [6] |
+| Typical contract | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Median about $88.5K a year (Vendr, 130 deals) | [4] |
+
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Published prices: $0, $49 or $149 a month. You only talk to me if you want Enterprise.
+- Your own domain from $49 a month on Startup, set up in the dashboard.
+- No DeepLinkNow domain is on AdGuard or EasyPrivacy, so ad blockers don't stop the link page.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+
+## Pick AppsFlyer if…
+
+- You spend real money on paid user acquisition and need attribution, fraud protection and SKAdNetwork reporting.
+
+If you just need links that open the right screen after install, don't pay for the rest.
+
+## The pricing math
+
+AppsFlyer doesn't publish a price for any plan with deferred deep links, so there's no per-unit figure to compare. Vendr's buyer data is the best public number: a median of about $88.5K a year across 130 deals. [1] [4]
+
+That median is about $7,375 a month. My Growth plan is $149 a month for up to 500,000 monthly active users. They aren't the same purchase: the AppsFlyer contract buys attribution, which I don't sell. If you need it, compare AppsFlyer with the other attribution platforms, not with me.
+
+## Switching from AppsFlyer
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Keep AppsFlyer for attribution if you still need it. DLN doesn't care.
+
+## Questions
+
+### How does AppsFlyer's pricing compare with DeepLinkNow's?
+
+AppsFlyer doesn't publish a price for any plan with deferred deep links, so there's no per-unit figure to compare. Vendr's buyer data is the best public number: a median of about $88.5K a year across 130 deals. That median is about $7,375 a month. My Growth plan is $149 a month for up to 500,000 monthly active users. They aren't the same purchase: the AppsFlyer contract buys attribution, which I don't sell. If you need it, compare AppsFlyer with the other attribution platforms, not with me.
+
+### When is AppsFlyer the better choice?
+
+You spend real money on paid user acquisition and need attribution, fraud protection and SKAdNetwork reporting.
+
+### Can I run DeepLinkNow next to AppsFlyer?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [AppsFlyer deep linking pricing](https://www.appsflyer.com/pricing/deep-linking/)
+2. [AppsFlyer Zero plan update](https://www.appsflyer.com/zero-update-2026/)
+3. [AdGuard Tracking Protection filter](https://filters.adtidy.org/extension/ublock/filters/3.txt)
+4. [Vendr: AppsFlyer](https://www.vendr.com/marketplace/appsflyer)
+5. [AppsFlyer OneLink API (checked October 21, 2026)](https://dev.appsflyer.com/hc/reference/onelinkapi_v2_overview)
+6. [AppsFlyer iOS SDK integration (checked October 21, 2026)](https://dev.appsflyer.com/hc/docs/integrate-ios-sdk)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/adjust
+
+# DeepLinkNow vs Adjust
+
+Mobile measurement platform (MMP). Facts as of October 21, 2026, each with a public source.
+
+Adjust is an attribution platform. Its deep linking product, TrueLink, sits inside it: links are created in Campaign Lab or the API, the SDK collects advertising IDs, and Adjust's own docs say deferred deep linking may be limited for users who opt out of tracking. I couldn't check its prices: the pricing page turned away automated requests on the day I looked.
+
+| | DeepLinkNow | Adjust | Sources |
+|---|---|---|---|
+| Deferred deep linking | Included on every plan, free one too | In TrueLink Base. The deep link generator API and the faster ODDL path need TrueLink Core or Enterprise. | [1] [9] |
+| Published prices | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | None I could check. Vendr's buyers report a median of $44,000 a year (31 deals), from $10,800 to $370,080. | [8] |
+| After an ATT opt-out | Nothing changes. No advertising IDs are involved. | "Deferred deep linking may be limited for users that opt-out." | [2] |
+| iOS clipboard handoff | Included on every plan, free one too | LinkMe: iOS 15 and up, SDK 4.31.0, and only if the user is in Safari | [3] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Created in Campaign Lab or through the API, as short links on yourbrand.go.link/<token> | [4] [5] |
+| Custom domain | $49/mo (Startup) | A branded name in front of .go.link, which can't be changed after you save it | [5] |
+| Advertising IDs | Never read. No ATT prompt. | The Android SDK adds the AD_ID permission by default. The iOS SDK's privacy manifest declares tracking, with eight tracking domains. | [6] [7] |
+| Ad-blocker lists | Not on any of them | adj.st, the legacy link domain, is on AdGuard Tracking Protection, and app.adjust.com is on EasyPrivacy | [10] [11] |
+
+## Where DeepLinkNow is ahead
+
+- Published prices: $0, $49 or $149 a month. You only talk to me if you want Enterprise.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No DeepLinkNow domain is on AdGuard or EasyPrivacy, so ad blockers don't stop the link page.
+- Your own domain from $49 a month on Startup, set up in the dashboard.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+
+## Pick Adjust if…
+
+- You buy ads and need attribution, including SKAdNetwork when users opt out of tracking.
+- You ship games or less common platforms: Adjust has SDKs for Unity, Cocos2d-x, Steamworks, Windows and more.
+
+Sources: [2] [12]
+
+If you just need links that open the right screen after install, don't pay for the rest.
+
+## The pricing math
+
+Adjust bills on attributions. Its live pricing page refused automated requests on October 21, 2026, so this uses Vendr's buyer data instead. [8]
+
+Vendr's median Adjust contract is $44,000 a year, about $3,670 a month, and the smallest it lists is $10,800 a year, about $900 a month. My Growth plan is $149 a month for up to 500,000 monthly active users. The Adjust contract buys attribution as well, which I don't sell, so if you need that, this isn't a like-for-like comparison.
+
+## Switching from Adjust
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Keep Adjust for attribution if you still need it. DLN doesn't care.
+
+## Questions
+
+### How does Adjust's pricing compare with DeepLinkNow's?
+
+Adjust bills on attributions. Its live pricing page refused automated requests on October 21, 2026, so this uses Vendr's buyer data instead. Vendr's median Adjust contract is $44,000 a year, about $3,670 a month, and the smallest it lists is $10,800 a year, about $900 a month. My Growth plan is $149 a month for up to 500,000 monthly active users. The Adjust contract buys attribution as well, which I don't sell, so if you need that, this isn't a like-for-like comparison.
+
+### When is Adjust the better choice?
+
+You buy ads and need attribution, including SKAdNetwork when users opt out of tracking. You ship games or less common platforms: Adjust has SDKs for Unity, Cocos2d-x, Steamworks, Windows and more.
+
+### Can I run DeepLinkNow next to Adjust?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [Adjust: TrueLink](https://help.adjust.com/en/article/truelink-adjusts-deep-linking-solution)
+2. [Adjust: App Tracking Transparency](https://help.adjust.com/en/article/app-tracking-transparency-att-framework)
+3. [Adjust: LinkMe](https://help.adjust.com/en/article/linkme)
+4. [Adjust: deep links](https://help.adjust.com/en/article/deep-links)
+5. [Adjust: branded domain](https://help.adjust.com/en/article/set-up-branded-domain)
+6. [Adjust iOS SDK privacy manifest](https://github.com/adjust/ios_sdk/blob/master/Adjust/PrivacyInfo.xcprivacy)
+7. [Adjust Android SDK](https://dev.adjust.com/en/sdk/android/)
+8. [Vendr: Adjust](https://www.vendr.com/marketplace/adjust)
+9. [Adjust: optimized deferred deep linking](https://help.adjust.com/en/article/optimized-deferred-deep-linking-oddl)
+10. [AdGuard Tracking Protection filter](https://filters.adtidy.org/extension/ublock/filters/3.txt)
+11. [EasyPrivacy filter list](https://easylist.to/easylist/easyprivacy.txt)
+12. [Adjust developer docs index](https://dev.adjust.com/llms.txt)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/singular
+
+# DeepLinkNow vs Singular
+
+Mobile measurement platform (MMP). Facts as of October 21, 2026, each with a public source.
+
+Singular is an attribution and marketing analytics platform. Its free plan includes deferred deep linking, which is more than some MMPs give away. The catch is in its own words: every Singular deep link is also an attribution link, made on its link page and carrying its tracking.
+
+| | DeepLinkNow | Singular | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | Free: 15,000 paid conversions, deferred deep linking included, no card | [1] [7] |
+| Paid plans | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Growth at $0.05 per conversion ("Let's Talk"). Enterprise by demo. | [1] |
+| Custom domain | $49/mo (Startup) | Growth and Enterprise | [1] [4] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Created on the Create Link page as sng.link/<app id>/<link id>, with the target in _dl and _ddl. Every deep link is an attribution link. | [2] [3] |
+| iOS clipboard handoff | The link page copies the link before the App Store, and the SDK reads it on first launch. A scored match is the backup. | Needs your own landing page with Singular's Web SDK and a download button | [5] |
+| Deferred click window | 1 hour | 6 hours by default, 24 on request through your Customer Success Manager | [3] |
+| Advertising IDs | Never read. No ATT prompt. | The iOS SDK's privacy manifest declares tracking, and it collects the IDFA when the user allows it | [6] |
+| Ad-blocker lists | Not on any of them | singular.net on EasyPrivacy; its SDK and web SDK hosts on AdGuard Tracking Protection | [8] [9] |
+
+## Where DeepLinkNow is ahead
+
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Your own domain from $49 a month on Startup, set up in the dashboard.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- No DeepLinkNow domain is on AdGuard or EasyPrivacy, so ad blockers don't stop the link page.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+
+## Pick Singular if…
+
+- You run paid user acquisition and want attribution, cost aggregation (Singular lists 1,200+ connectors), SKAdNetwork and fraud prevention, starting free.
+
+Sources: [1] [10]
+
+If you just need links that open the right screen after install, don't pay for the rest.
+
+## The pricing math
+
+Singular bills on paid conversions: 15,000 free, then $0.05 each on Growth. I bill on monthly active users and don't count conversions at all. [1]
+
+If most of your installs are organic, Singular's free plan may cover you for a long time, since it counts paid conversions. If you run ads and get 30,000 paid conversions a month, that's up to $1,500 a month on Growth at $0.05 each. An app with 100,000 monthly users is $49 a month on my Startup plan whatever it spends on ads, but you'd still need something else for attribution.
+
+## Switching from Singular
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Keep Singular for attribution if you still need it. DLN doesn't care.
+
+## Questions
+
+### How does Singular's pricing compare with DeepLinkNow's?
+
+Singular bills on paid conversions: 15,000 free, then $0.05 each on Growth. I bill on monthly active users and don't count conversions at all. If most of your installs are organic, Singular's free plan may cover you for a long time, since it counts paid conversions. If you run ads and get 30,000 paid conversions a month, that's up to $1,500 a month on Growth at $0.05 each. An app with 100,000 monthly users is $49 a month on my Startup plan whatever it spends on ads, but you'd still need something else for attribution.
+
+### When is Singular the better choice?
+
+You run paid user acquisition and want attribution, cost aggregation (Singular lists 1,200+ connectors), SKAdNetwork and fraud prevention, starting free.
+
+### Can I run DeepLinkNow next to Singular?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [Singular pricing](https://www.singular.net/pricing/)
+2. [Singular: deep linking](https://www.singular.net/deep-linking/)
+3. [Singular Links FAQ](https://support.singular.net/hc/en-us/articles/360030934212)
+4. [Singular: branded link domain](https://support.singular.net/hc/en-us/articles/36288141843739)
+5. [Singular: clipboard-based deferred deep linking](https://support.singular.net/hc/en-us/articles/5626161387419)
+6. [Singular iOS SDK privacy manifest](https://github.com/singular-labs/Singular-iOS-SDK/blob/main/Sources/Singular/PrivacyInfo.xcprivacy)
+7. [Singular: Firebase Dynamic Links post](https://www.singular.net/blog/firebase-dynamic-links-deep-links/)
+8. [AdGuard Tracking Protection filter](https://filters.adtidy.org/extension/ublock/filters/3.txt)
+9. [EasyPrivacy filter list](https://easylist.to/easylist/easyprivacy.txt)
+10. [Singular](https://www.singular.net/)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/kochava
+
+# DeepLinkNow vs Kochava
+
+Mobile measurement platform (MMP). Facts as of October 21, 2026, each with a public source.
+
+Kochava is an attribution platform with SmartLinks for deep linking, and its free plan includes deferred deep links. Universal Links, App Links and a branded domain aren't on that plan: they start on Foundation, from $500 a month, and the domain is set up through your Client Success Manager.
+
+| | DeepLinkNow | Kochava | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | Free App Analytics: 10,000 attributed conversions a month, with deferred deep linking and SmartLinks, but no Universal Links, App Links or custom domain | [1] [2] |
+| Paid plans | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Foundation from $500/mo (33,000 conversions), Enterprise from $2,000/mo. Both start with a trial request form. | [1] |
+| Custom domain | $49/mo (Startup) | Foundation and up: a your-brand.smart.link subdomain, set up through your Client Success Manager | [1] [6] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Create a SmartLink first, then pass the destination in a parameter you configure, such as ?deeplink= | [3] |
+| Deferred matching | The link page copies the link before the App Store, and the SDK reads it on first launch. A scored match is the backup. | IP address and user agent by default. Kochava's test guide tells testers to turn off iCloud Private Relay. | [4] |
+| Match lookback | 1 hour | 7 days for modeled (IP and user agent) matches, by default | [5] |
+| Advertising IDs | Never read. No ATT prompt. | IDFA after the ATT prompt (the SDK can show it) and the Google advertising ID, through optional modules | [7] |
+| Ad-blocker lists | Not on any of them | kochava.com/track/ on EasyPrivacy, smart.link/imp/ on AdGuard Tracking Protection | [8] [9] |
+
+## Where DeepLinkNow is ahead
+
+- Your own domain from $49 a month on Startup, set up in the dashboard.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- No DeepLinkNow domain is on AdGuard or EasyPrivacy, so ad blockers don't stop the link page.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+
+## Pick Kochava if…
+
+- You run paid campaigns and want attribution and fraud prevention, with a free plan to start.
+- You ship to TVs and consoles as well as phones: Kochava has SDKs and SmartLinks for connected TV.
+
+Sources: [1]
+
+If you just need links that open the right screen after install, don't pay for the rest.
+
+## The pricing math
+
+Kochava bills on attributed conversions: installs or re-engagements credited to a media source. 10,000 a month are free, Foundation includes 33,000 from $500 a month. [1] [2]
+
+An app with 50,000 monthly users and 8,000 attributed installs a month fits Kochava's free plan, if links on the default smart.link domain without Universal Links or App Links are enough. With them, it's Foundation from $500 a month. On DeepLinkNow the same app is $49 on Startup, own domain included. If you don't need Universal Links and you want attribution too, Kochava's free plan costs less than mine.
+
+## Switching from Kochava
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Keep Kochava for attribution if you still need it. DLN doesn't care.
+
+## Questions
+
+### How does Kochava's pricing compare with DeepLinkNow's?
+
+Kochava bills on attributed conversions: installs or re-engagements credited to a media source. 10,000 a month are free, Foundation includes 33,000 from $500 a month. An app with 50,000 monthly users and 8,000 attributed installs a month fits Kochava's free plan, if links on the default smart.link domain without Universal Links or App Links are enough. With them, it's Foundation from $500 a month. On DeepLinkNow the same app is $49 on Startup, own domain included. If you don't need Universal Links and you want attribution too, Kochava's free plan costs less than mine.
+
+### When is Kochava the better choice?
+
+You run paid campaigns and want attribution and fraud prevention, with a free plan to start. You ship to TVs and consoles as well as phones: Kochava has SDKs and SmartLinks for connected TV.
+
+### Can I run DeepLinkNow next to Kochava?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [Kochava pricing](https://www.kochava.com/get-started/)
+2. [Kochava Free App Analytics](https://www.kochava.com/product/free-app-analytics/)
+3. [Kochava: dynamic deep linking](https://support.kochava.com/articles/links-overview/42172-dynamic-deep-linking/)
+4. [Kochava: testing a deferred deeplink](https://support.kochava.com/articles/reference-information/48738-testing-a-deferred-deeplink/)
+5. [Kochava: attribution overview](https://support.kochava.com/articles/reference-information/223-attribution-overview/)
+6. [Kochava: Universal Link and App Link support](https://support.kochava.com/articles/links-overview/16919-adding-universal-link-or-app-link-support/)
+7. [Kochava Apple SDK](https://support.kochava.com/articles/apple-sdk/)
+8. [EasyPrivacy filter list](https://easylist.to/easylist/easyprivacy.txt)
+9. [AdGuard Tracking Protection filter](https://filters.adtidy.org/extension/ublock/filters/3.txt)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
 Source: https://deeplinknow.com/compare/airbridge
 
 # DeepLinkNow vs Airbridge
@@ -1276,23 +2182,54 @@ Airbridge is a mobile measurement platform with deep linking built in. It's chea
 
 | | DeepLinkNow | Airbridge | Sources |
 |---|---|---|---|
-| Free plan | Free up to 15,000 monthly active users. No card. | None on the pricing page. Core is from $40/mo after a 30-day trial. | [1] [2] |
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | None on the pricing page. Core is from $40/mo after a 30-day trial. | [1] [2] |
 | What you pay for | Monthly active users, one flat price per plan | Data points: 500K a month on Core, then $0.0001 each | [2] |
 | Making links | Any path on your domain is already a link. Nothing to create. | Created first, in the dashboard, Google Sheets or the API. Custom domains must be a dedicated subdomain. | [3] |
 | Deferred link on iOS | Handed over on first launch. Nothing to wait for. | The SDK waits for the ATT answer (30 seconds by default) before delivering it | [4] |
 | Advertising IDs | Never read. No ATT prompt. | IDFA and GAID collected by default | [5] |
 | Ad-blocker lists | Not on any of them | SDK, attribution and event domains, plus a deferred-deeplink rule, on AdGuard's tracking list | [6] |
 
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No DeepLinkNow domain is on AdGuard or EasyPrivacy, so ad blockers don't stop the link page.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+
 ## Pick Airbridge if…
 
 - You want a full MMP, with ad network integrations and attribution, at a lower entry price than AppsFlyer.
 
+If you just need links that open the right screen after install, don't pay for the rest.
+
+## The pricing math
+
+Airbridge's Core plan starts at $40 a month for 500,000 data points, then $0.0001 per data point. Its pricing page (checked October 20, 2026) says $40 covers about 35,000 monthly active users at typical usage. [1] [2]
+
+Take Airbridge's own figure: an app with 35,000 monthly users pays about $40 on Core. That's past my free plan (25,000), so on DeepLinkNow it's $49 on Startup. Airbridge is cheaper there, and includes attribution. Below 25,000 monthly users I'm free and Airbridge is still $40.
+
 ## Switching from Airbridge
 
-1. Add the DLN SDK and ship it.
-2. Use your own domain's paths as links. You don't need to recreate the Airbridge links one by one.
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
 3. Read the link with checkDeferredDeepLink() on first launch.
 4. Remove the Airbridge SDK, and its ATT prompt if deep linking was its only job.
+
+## Questions
+
+### How does Airbridge's pricing compare with DeepLinkNow's?
+
+Airbridge's Core plan starts at $40 a month for 500,000 data points, then $0.0001 per data point. Its pricing page (checked October 20, 2026) says $40 covers about 35,000 monthly active users at typical usage. Take Airbridge's own figure: an app with 35,000 monthly users pays about $40 on Core. That's past my free plan (25,000), so on DeepLinkNow it's $49 on Startup. Airbridge is cheaper there, and includes attribution. Below 25,000 monthly users I'm free and Airbridge is still $40.
+
+### When is Airbridge the better choice?
+
+You want a full MMP, with ad network integrations and attribution, at a lower entry price than AppsFlyer.
+
+### Can I run DeepLinkNow next to Airbridge?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
 
 ## Sources
 
@@ -1306,39 +2243,749 @@ Airbridge is a mobile measurement platform with deep linking built in. It's chea
 DeepLinkNow is not affiliated with the vendors compared here.
 
 ---
-Source: https://deeplinknow.com/compare/appsflyer
+Source: https://deeplinknow.com/compare/linkrunner
 
-# DeepLinkNow vs AppsFlyer
+# DeepLinkNow vs Linkrunner
 
-Mobile measurement platform (MMP). Facts as of October 19, 2026, each with a public source.
+Low-cost mobile measurement platform. Facts as of October 21, 2026, each with a public source.
 
-AppsFlyer is the biggest attribution platform there is. It's built for paid user acquisition, and it's very good at that. Deferred deep linking is one feature inside it, and since 2026 it isn't on the free plan at all.
+Linkrunner is an attribution platform priced for startups, with deep links included. It costs a fraction of the big MMPs and its developer tooling is good. It's still an MMP: clicks carry advertising IDs, and the app gets attribution data rather than a score it can set a threshold on.
 
-| | DeepLinkNow | AppsFlyer | Sources |
+| | DeepLinkNow | Linkrunner | Sources |
 |---|---|---|---|
-| Free plan | Free up to 15,000 monthly active users. No card. | Zero plan: links and QR codes, but no deferred deep linking since its 2026 update | [1] [2] |
-| Cheapest plan with deferred deep links | $0, $49 or $149 a month, published, billed monthly | Deep Linking Standard, custom price | [1] |
-| Sales call | Never. Every plan is self-serve. | Every paid tier is "Request a demo" | [1] |
-| Custom domain | $49/mo (Startup) | Branded domains from the Advanced tier, custom price | [1] |
-| Ad-blocker lists | Not on any of them | 54 rules on AdGuard Tracking Protection, including onelink.me and the OneLink Smart Script | [3] |
-| Typical contract | $0, $49 or $149 a month, published, billed monthly | Median about $88.5K a year (Vendr, 130 deals) | [4] |
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | 25,000 attributed installs, deferred deep linking included, no card. Data kept 30 days. | [1] |
+| What you pay for | Monthly active users (devices that open your app with the SDK). Each distinct link path counts once toward the link limit (1,000 on the free plan). | Attributed installs: $0.010 each up to 50,000 a month, falling to $0.007 past 500,000 | [1] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Your subdomain with any query, like /product?variant_id=987, without a record per destination. Campaign links are created. | [3] |
+| Link domain | yourapp.deeplinknow.com on every plan, your own domain from $49/mo | Your own subdomain, as a CNAME to api.linkrunner.io | [5] |
+| Advertising IDs | Never read. No ATT prompt. | Clicks store GAID or IDFA and ad network click IDs. The Expo plugin adds the ATT prompt text unless you set disableIdfa. | [4] [7] |
+| What the app gets | A confidence score from 0 to 100 and a HIGH, MEDIUM or LOW label. You pick the threshold. | The deep link and campaign data (organic or not). No confidence score. | [6] |
 
-## Pick AppsFlyer if…
+## Where DeepLinkNow is ahead
 
-- You spend real money on paid user acquisition and need attribution, fraud protection and SKAdNetwork reporting.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Published prices: $0, $49 or $149 a month. You only talk to me if you want Enterprise.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+- Single sign-on with Microsoft Entra ID, Okta or Google Workspace on Enterprise.
 
-## Switching from AppsFlyer
+## Pick Linkrunner if…
 
-1. Add the DLN SDK and ship it.
-2. Use paths on your domain as links instead of OneLink templates.
+- You also want install attribution for Meta, Google, Apple Search Ads and SKAdNetwork from one SDK, at about a cent per install.
+- You want its tooling: an MCP server that checks your link setup, an lr doctor CLI for CI, and a hand-off page for social in-app browsers.
+- You need Capacitor, Cordova or Unity SDKs.
+
+Sources: [1] [8] [9] [10] [11]
+
+If you don't need attribution, you don't need the advertising IDs that come with it.
+
+## The pricing math
+
+Linkrunner bills on attributed installs: 25,000 free, then $0.010 to $0.007 each depending on volume. It also lists a deep-links-only price ($24 a month billed yearly, or $30 monthly in its FAQ) that isn't on the main pricing page. [1] [2]
+
+At $0.009 to $0.010 per install, 100,000 attributed installs in a month comes to roughly $900 to $1,000. I don't count installs: an app with 100,000 monthly users is $49 on Startup. Under 25,000 installs a month both are free, and if you need the attribution, Linkrunner is the cheapest MMP on this list.
+
+## Switching from Linkrunner
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
 3. Read the link with checkDeferredDeepLink() on first launch.
-4. Keep AppsFlyer for attribution if you still need it. DLN doesn't care.
+4. Remove the Linkrunner SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does Linkrunner's pricing compare with DeepLinkNow's?
+
+Linkrunner bills on attributed installs: 25,000 free, then $0.010 to $0.007 each depending on volume. It also lists a deep-links-only price ($24 a month billed yearly, or $30 monthly in its FAQ) that isn't on the main pricing page. At $0.009 to $0.010 per install, 100,000 attributed installs in a month comes to roughly $900 to $1,000. I don't count installs: an app with 100,000 monthly users is $49 on Startup. Under 25,000 installs a month both are free, and if you need the attribution, Linkrunner is the cheapest MMP on this list.
+
+### When is Linkrunner the better choice?
+
+You also want install attribution for Meta, Google, Apple Search Ads and SKAdNetwork from one SDK, at about a cent per install. You want its tooling: an MCP server that checks your link setup, an lr doctor CLI for CI, and a hand-off page for social in-app browsers. You need Capacitor, Cordova or Unity SDKs.
+
+### Can I run DeepLinkNow next to Linkrunner?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
 
 ## Sources
 
-1. [AppsFlyer deep linking pricing](https://www.appsflyer.com/pricing/deep-linking/)
-2. [AppsFlyer Zero plan update](https://www.appsflyer.com/zero-update-2026/)
-3. [AdGuard Tracking Protection filter](https://filters.adtidy.org/extension/ublock/filters/3.txt)
-4. [Vendr: AppsFlyer](https://www.vendr.com/marketplace/appsflyer)
+1. [Linkrunner pricing](https://linkrunner.io/pricing.md)
+2. [Linkrunner: deep links](https://linkrunner.io/deeplinks.md)
+3. [Linkrunner: deep link management](https://docs.linkrunner.io/features/deep-link-management.md)
+4. [Linkrunner: link redirection](https://docs.linkrunner.io/features/link-redirection.md)
+5. [Linkrunner: subdomain setup](https://docs.linkrunner.io/features/subdomain-setup.md)
+6. [Linkrunner iOS SDK](https://docs.linkrunner.io/sdk/ios.md)
+7. [Linkrunner Expo SDK](https://docs.linkrunner.io/sdk/expo.md)
+8. [Linkrunner MCP server](https://docs.linkrunner.io/features/mcp.md)
+9. [Linkrunner CLI (npm)](https://www.npmjs.com/package/@linkrunner/cli)
+10. [Linkrunner: social media intermediary page](https://docs.linkrunner.io/features/social-media-intermediary-page.md)
+11. [Linkrunner docs index](https://docs.linkrunner.io/llms.txt)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/detour
+
+# DeepLinkNow vs Detour
+
+Deferred deep linking for React Native and Expo. Facts as of October 21, 2026, each with a public source.
+
+Detour is the closest thing to what I built: deferred deep links for React Native and Expo without an attribution suite. Software Mansion makes it, Expo's blog ran its guest post in July 2026, and its Expo Router support is good, including a pattern for holding a link until the user gets past your sign-in screen. The differences are the free plan, what you pay for, and how much the app learns about a match.
+
+| | DeepLinkNow | Detour | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | 1,500 clicks a month and 50 short links per app. Past the limit, deep link matching stops and plain redirects keep working. | [1] |
+| What you pay for | Monthly active users (devices that open your app with the SDK). Each distinct link path counts once toward the link limit (1,000 on the free plan). | Link clicks: Starter $19/mo for 70,000, Scale $79/mo for 350,000, then optional pay-as-you-go per 1,000 clicks | [1] |
+| Custom domain | $49/mo (Startup) | Scale, $79/mo. Free and Starter links live on a .godetour.link subdomain. | [1] [4] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Any path and query after the app's fixed /<app_hash>/ segment, which stays in the URL on a custom domain too | [2] [4] |
+| What the app gets | A confidence score from 0 to 100 and a HIGH, MEDIUM or LOW label. You pick the threshold. | A link, or nothing. The server applies its own threshold (850 by default, 700 to 1200) and sends no score. | [3] [4] |
+| Match window | 1 hour | 15 minutes by default, configurable from 5 to 180 | [3] |
+| Expo Router | A +native-intent helper (@deeplinknow/react-native/expo-router) and a useDeferredDeepLink() hook | A +native-intent handler and a DetourProvider, with examples that keep the link through sign-in | [4] [6] |
+| How long click data is kept | A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days. | The privacy policy says data is kept "as long as needed to provide" the service and gives no period | [7] |
+
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Your own domain from $49 a month on Startup, set up in the dashboard.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Free AASA, assetlinks.json and ad-block list checkers, no sign-up needed.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+
+## Pick Detour if…
+
+- You'd rather depend on Software Mansion, a well-known React Native company, and want SDKs that are MIT-licensed on GitHub.
+- You want smart banners, a hand-off out of the Instagram and Facebook in-app browsers, or scheduled analytics exports. I don't do those.
+- Your app has more than 25,000 monthly users but your links get under 70,000 clicks a month: Starter at $19 costs less than my Startup plan.
+
+Sources: [5] [4] [1]
+
+If you want a free plan sized for a real launch and a score you can set your own threshold on, try mine first.
+
+## The pricing math
+
+Detour bills on link clicks: 1,500 free, 70,000 for $19, 350,000 for $79. I bill on monthly active users, the devices that open your app with the SDK. The two don't convert one to one, so it depends on how many clicks each user makes. [1]
+
+Say 15,000 people use your app each month and your links get 40,000 clicks across a few hundred paths. Detour: Starter, $19. DeepLinkNow: free. Now say 60,000 monthly users and the same 40,000 clicks: Detour is still $19, and I'm $49 on Startup. If your users far outnumber your link clicks, Detour costs less.
+
+## Switching from Detour
+
+1. Add the DLN SDK next to Detour's and ship it.
+2. Point your link domain at DLN. Paths on it work without the /<app_hash>/ segment.
+3. Swap createDetourNativeIntentHandler for createRedirectSystemPath from @deeplinknow/react-native/expo-router, and DetourProvider's link for useDeferredDeepLink().
+4. Keep Detour until the links you've already shared stop getting clicks. Its custom-domain links stop resolving when the subscription ends.
+
+## Questions
+
+### How does Detour's pricing compare with DeepLinkNow's?
+
+Detour bills on link clicks: 1,500 free, 70,000 for $19, 350,000 for $79. I bill on monthly active users, the devices that open your app with the SDK. The two don't convert one to one, so it depends on how many clicks each user makes. Say 15,000 people use your app each month and your links get 40,000 clicks across a few hundred paths. Detour: Starter, $19. DeepLinkNow: free. Now say 60,000 monthly users and the same 40,000 clicks: Detour is still $19, and I'm $49 on Startup. If your users far outnumber your link clicks, Detour costs less.
+
+### When is Detour the better choice?
+
+You'd rather depend on Software Mansion, a well-known React Native company, and want SDKs that are MIT-licensed on GitHub. You want smart banners, a hand-off out of the Instagram and Facebook in-app browsers, or scheduled analytics exports. I don't do those. Your app has more than 25,000 monthly users but your links get under 70,000 clicks a month: Starter at $19 costs less than my Startup plan.
+
+### Can I run DeepLinkNow next to Detour?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [Detour: billing](https://detour.swmansion.com/docs/platform/fundamentals/billing)
+2. [Detour: click handling](https://detour.swmansion.com/docs/platform/architecture/click-handling)
+3. [Detour: matching](https://detour.swmansion.com/docs/platform/architecture/matching)
+4. [Detour docs (full text)](https://detour.swmansion.com/docs/llms-full.txt)
+5. [Detour React Native SDK](https://github.com/software-mansion-labs/react-native-detour)
+6. [Expo blog: deferred deep linking the right way](https://expo.dev/blog/deferred-deep-linking-the-right-way)
+7. [Detour privacy policy](https://godetour.dev/privacy-policy)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/chottulink
+
+# DeepLinkNow vs ChottuLink
+
+Deep linking with install attribution. Facts as of October 21, 2026, each with a public source.
+
+ChottuLink prices the way I do, by monthly active users, and its paid plans are cheaper than mine. The differences are in how links work, what the app learns about a match, and the attribution features it's adding, such as lead and conversion tracking.
+
+| | DeepLinkNow | ChottuLink | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | Free to 25,000 MAU on a chottu.link subdomain, with deferred deep links. MAU means users who opened the app in the last 30 days. | [1] |
+| Paid plans | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Indie $19/mo to 75,000 MAU, Growth $39/mo to 150,000, Scale $99/mo to 500,000 | [1] [2] |
+| Custom domain | $49/mo (Startup) | Growth, $39/mo, on the plan cards. Other text on the same page says the free plan includes one; the cards say it doesn't. | [1] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Created first, in the dashboard, the SDK's link builder or the REST API. Each path can only be used once on a domain. | [3] |
+| What the app gets | A confidence score from 0 to 100 and a HIGH, MEDIUM or LOW label. You pick the threshold. | matchFound (true or false) and an attribution type. No score. | [4] |
+| Attribution | None. Forward the link to your own analytics. | Lead and conversion tracking with revenue; Meta and Google Conversions API on Enterprise | [4] [1] |
+| Flutter SDK licence | Flutter SDK (pub.dev `deeplinknow`), MIT-licensed | Proprietary EULA, for active subscribers only | [5] |
+
+## Where DeepLinkNow is ahead
+
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Free AASA, assetlinks.json and ad-block list checkers, no sign-up needed.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+- Single sign-on with Microsoft Entra ID, Okta or Google Workspace on Enterprise.
+
+## Pick ChottuLink if…
+
+- You're past 25,000 monthly users and price decides it: Indie is $19 for up to 75,000, and Growth is $39 with a custom domain. Both cost less than mine.
+- You need Unity, Capacitor or web SDKs, webhooks, or lead and conversion tracking.
+
+Sources: [1] [4] [6]
+
+If you want any path to work as a link and a score you can set a threshold on, try mine.
+
+## The pricing math
+
+ChottuLink and I count nearly the same thing: users who opened the app (ChottuLink over the last 30 days, me over the calendar month). So the plans compare directly. [1]
+
+At 20,000 monthly users both are free. At 60,000, ChottuLink is $19 and I'm $49. At 140,000, ChottuLink is $39 with a custom domain and I'm $149 (Startup stops at 100,000). ChottuLink is cheaper at every paid step.
+
+## Switching from ChottuLink
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the ChottuLink SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does ChottuLink's pricing compare with DeepLinkNow's?
+
+ChottuLink and I count nearly the same thing: users who opened the app (ChottuLink over the last 30 days, me over the calendar month). So the plans compare directly. At 20,000 monthly users both are free. At 60,000, ChottuLink is $19 and I'm $49. At 140,000, ChottuLink is $39 with a custom domain and I'm $149 (Startup stops at 100,000). ChottuLink is cheaper at every paid step.
+
+### When is ChottuLink the better choice?
+
+You're past 25,000 monthly users and price decides it: Indie is $19 for up to 75,000, and Growth is $39 with a custom domain. Both cost less than mine. You need Unity, Capacitor or web SDKs, webhooks, or lead and conversion tracking.
+
+### Can I run DeepLinkNow next to ChottuLink?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [ChottuLink pricing](https://chottulink.com/pricing.html)
+2. [ChottuLink FAQ](https://chottulink.com/faq.html)
+3. [ChottuLink: create links](https://docs.chottulink.com/create-links)
+4. [ChottuLink: attribution](https://docs.chottulink.com/attribution)
+5. [ChottuLink Flutter SDK licence](https://pub.dev/packages/chottu_link/license)
+6. [ChottuLink llms.txt](https://chottulink.com/llms.txt)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/warplink
+
+# DeepLinkNow vs WarpLink
+
+Deep linking with attribution and analytics. Facts as of October 21, 2026, each with a public source.
+
+WarpLink is a well-built small deep linking service with more developer tooling than I have: an MCP server, nine free checkers and generators, an OpenAPI spec and published accuracy numbers. It returns a confidence score, like I do. It bills per click, creates links up front and has no clipboard step on iOS.
+
+| | DeepLinkNow | WarpLink | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | 10,000 tracked clicks and 100 links, with a custom domain for the first 90 days | [1] |
+| What you pay for | Monthly active users (devices that open your app with the SDK). Each distinct link path counts once toward the link limit (1,000 on the free plan). | Tracked clicks: $19 for 100,000, $49 for 500,000, $99 for 2 million, $149 unlimited. Redirects keep working over the cap. | [1] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Created first, per app, on {handle}.aplnk.to | [2] [7] |
+| Deferred link on iOS | The link page copies the link before the App Store, and the SDK reads it on first launch. A scored match is the backup. | No clipboard step. A probabilistic match on IP address, language and time zone, held 6 hours by default. | [3] |
+| What the app gets | A confidence score from 0 to 100 and a HIGH, MEDIUM or LOW label. You pick the threshold. | A score from 0.0 to 1.0; 1.0 for an install-referrer match on Android | [3] |
+| How long click data is kept | A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days. | 90 days to 3 years, depending on the plan | [4] |
+| Where data lives | Sydney: Vercel's syd1 region and a database in AWS ap-southeast-2. Custom domains are served through Cloudflare. | A database in the United States (Northern Virginia) | [5] |
+
+## Where DeepLinkNow is ahead
+
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+- Single sign-on with Microsoft Entra ID, Okta or Google Workspace on Enterprise.
+
+## Pick WarpLink if…
+
+- You want the tooling: an MCP server with 34 tools, nine free checkers and generators, an OpenAPI spec and published accuracy numbers.
+- Your app has many users but few link clicks: Starter is $19 for 100,000 clicks.
+- You want everything unlimited for a flat $149 a month.
+
+Sources: [6] [8] [9] [1]
+
+If most of your users are on iPhones, the clipboard handoff is worth testing before you decide.
+
+## The pricing math
+
+WarpLink bills on tracked clicks, one per link and visitor address in 24 hours. I bill on monthly active users. [1]
+
+An app with 60,000 monthly users and 80,000 tracked clicks a month: WarpLink Starter, $19, and DeepLinkNow Startup, $49. An app with 20,000 users running a campaign that gets 150,000 clicks: WarpLink Growth, $49, and DeepLinkNow free. Which is cheaper depends on clicks per user.
+
+## Switching from WarpLink
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the WarpLink SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does WarpLink's pricing compare with DeepLinkNow's?
+
+WarpLink bills on tracked clicks, one per link and visitor address in 24 hours. I bill on monthly active users. An app with 60,000 monthly users and 80,000 tracked clicks a month: WarpLink Starter, $19, and DeepLinkNow Startup, $49. An app with 20,000 users running a campaign that gets 150,000 clicks: WarpLink Growth, $49, and DeepLinkNow free. Which is cheaper depends on clicks per user.
+
+### When is WarpLink the better choice?
+
+You want the tooling: an MCP server with 34 tools, nine free checkers and generators, an OpenAPI spec and published accuracy numbers. Your app has many users but few link clicks: Starter is $19 for 100,000 clicks. You want everything unlimited for a flat $149 a month.
+
+### Can I run DeepLinkNow next to WarpLink?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [WarpLink pricing](https://warplink.app/pricing)
+2. [WarpLink llms.txt](https://warplink.app/llms.txt)
+3. [WarpLink: attribution](https://warplink.app/docs/concepts/attribution)
+4. [WarpLink privacy](https://warplink.app/privacy)
+5. [WarpLink subprocessors](https://warplink.app/subprocessors)
+6. [WarpLink AI access](https://warplink.app/docs/ai-access)
+7. [WarpLink links API](https://warplink.app/docs/api/links)
+8. [WarpLink free tools](https://warplink.app/tools)
+9. [WarpLink: attribution accuracy](https://warplink.app/docs/trust/attribution-accuracy)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/dynalinks
+
+# DeepLinkNow vs Dynalinks
+
+Deep linking with Firebase-style links. Facts as of October 21, 2026, each with a public source.
+
+Dynalinks is a small, cheap deep linking service that took the Firebase Dynamic Links long-link format seriously. For a single app its paid plan costs less than mine. Its free plan doesn't do deferred deep links at all.
+
+| | DeepLinkNow | Dynalinks | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | Basic: 100 links per project, no deferred deep linking | [1] [2] |
+| Cheapest plan with deferred deep links | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Pro, $14.99 per project per month, unlimited links | [2] |
+| Custom domain | $49/mo (Startup) | Pro, one per project. Links on it stop resolving if the project drops back to Basic. | [3] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Named links are created in the console or the API and looked up by path. Firebase-style ?link= long links work on Pro. | [4] [8] |
+| Match window on iOS | 1 hour | 10 minutes, single use | [5] |
+| What the app gets | A confidence score from 0 to 100 and a HIGH, MEDIUM or LOW label. You pick the threshold. | A high, medium or low label and a 0 to 100 score | [6] |
+| Advertising IDs | Never read. No ATT prompt. | Not used. No ATT prompt. | [7] |
+
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- A deferred link can be claimed for 1 hour after the click.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Free AASA, assetlinks.json and ad-block list checkers, no sign-up needed.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+
+## Pick Dynalinks if…
+
+- You have one app and want the lowest price with a custom domain: Pro is $14.99 a month.
+- You're moving Firebase long links and want to change only the host. Dynalinks reads more of the Firebase parameters than I do, including the fallback ones I ignore.
+
+Sources: [2] [4]
+
+If you want deferred deep links without paying first, and any path to work, try mine.
+
+## The pricing math
+
+Dynalinks bills per project: Basic is free with 100 links and no deferred links, and Pro is $14.99 a month per project with unlimited links. It doesn't meter clicks or users. [2]
+
+One app with 40,000 monthly users: Dynalinks Pro, $14.99, and DeepLinkNow Startup, $49. Two apps: $29.98 against $49, since Startup covers 3 apps. Under 25,000 monthly users I'm free with deferred links included, and Dynalinks needs Pro for them.
+
+## Switching from Dynalinks
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the Dynalinks SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does Dynalinks's pricing compare with DeepLinkNow's?
+
+Dynalinks bills per project: Basic is free with 100 links and no deferred links, and Pro is $14.99 a month per project with unlimited links. It doesn't meter clicks or users. One app with 40,000 monthly users: Dynalinks Pro, $14.99, and DeepLinkNow Startup, $49. Two apps: $29.98 against $49, since Startup covers 3 apps. Under 25,000 monthly users I'm free with deferred links included, and Dynalinks needs Pro for them.
+
+### When is Dynalinks the better choice?
+
+You have one app and want the lowest price with a custom domain: Pro is $14.99 a month. You're moving Firebase long links and want to change only the host. Dynalinks reads more of the Firebase parameters than I do, including the fallback ones I ignore.
+
+### Can I run DeepLinkNow next to Dynalinks?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [Dynalinks pricing](https://dynalinks.app/pricing)
+2. [Dynalinks: plans](https://docs.dynalinks.app/start/plans)
+3. [Dynalinks: custom domains](https://docs.dynalinks.app/advanced/custom-domains)
+4. [Dynalinks: named and unnamed links](https://docs.dynalinks.app/links/named-vs-unnamed)
+5. [Dynalinks: deferred deep linking on iOS](https://docs.dynalinks.app/deferred/deferred-ios)
+6. [Dynalinks React Native SDK](https://docs.dynalinks.app/react-native/sdk)
+7. [Dynalinks: iOS privacy](https://docs.dynalinks.app/ios/privacy-compliance)
+8. [Dynalinks: query parameters](https://docs.dynalinks.app/advanced/query-params)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/flinku
+
+# DeepLinkNow vs Flinku
+
+Deep linking for indie developers. Facts as of October 21, 2026, each with a public source.
+
+Flinku is a newer indie deep linking tool. It's cheap, it has a referral system, and its paid plans include catch-all routing, which is the nearest thing on this list to my any-path links.
+
+| | DeepLinkNow | Flinku | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | 3 projects, 300 links and 10,000 clicks a month, with deferred deep linking | [1] |
+| Over the limit | Links keep routing. On the free plan, deferred links stop past 25,000 monthly users until you upgrade. | Links show a "temporarily unavailable" message until the next month or an upgrade | [2] |
+| Paid plans | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Indie $12/mo (300,000 clicks, custom domains), Studio $39/mo (10 million clicks) | [1] |
+| Any path as a link | Any path on your domain is already a link. Nothing to create. | Catch-all routing on Indie and up, built on a URI scheme, with project-level analytics only and no QR codes | [4] |
+| Deferred matching | A confidence score from 0 to 100 and a HIGH, MEDIUM or LOW label. You pick the threshold. | Fingerprint and clipboard on every SDK; install referrer on native Android and a Flutter beta; matches held 24 hours; no score | [3] |
+
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+
+## Pick Flinku if…
+
+- You want the lowest price with a custom domain: Indie is $12 a month.
+- You want a built-in referral system, or Unity and Capacitor SDKs.
+
+Sources: [1] [5]
+
+If your links get spikes of clicks, check what happens at the cap before you pick.
+
+## The pricing math
+
+Flinku bills on links and clicks, and says it will never bill on MAU. I bill on monthly active users. [1]
+
+An app with 40,000 monthly users and 50,000 clicks: Flinku Indie, $12, and DeepLinkNow Startup, $49. An app with 15,000 users and 15,000 clicks: Flinku's free plan runs out of clicks and links go "temporarily unavailable" until next month, and I'm free.
+
+## Switching from Flinku
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the Flinku SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does Flinku's pricing compare with DeepLinkNow's?
+
+Flinku bills on links and clicks, and says it will never bill on MAU. I bill on monthly active users. An app with 40,000 monthly users and 50,000 clicks: Flinku Indie, $12, and DeepLinkNow Startup, $49. An app with 15,000 users and 15,000 clicks: Flinku's free plan runs out of clicks and links go "temporarily unavailable" until next month, and I'm free.
+
+### When is Flinku the better choice?
+
+You want the lowest price with a custom domain: Indie is $12 a month. You want a built-in referral system, or Unity and Capacitor SDKs.
+
+### Can I run DeepLinkNow next to Flinku?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [Flinku pricing](https://flinku.dev/pricing.md)
+2. [Flinku](https://flinku.dev/)
+3. [Flinku: deferred deep linking](https://docs.flinku.dev/docs/deferred-deep-linking/)
+4. [Flinku: catch-all routing](https://docs.flinku.dev/docs/catch-all-routing/)
+5. [Flinku llms.txt](https://flinku.dev/llms.txt)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/rift
+
+# DeepLinkNow vs Rift
+
+Deep linking and attribution API. Facts as of October 21, 2026, each with a public source.
+
+Rift is a new deep linking and attribution API, aimed at developers and AI agents. It's inexpensive and includes a custom domain on the free plan. Deferral is clipboard and install referrer only, and the SDKs are native iOS, Android and web.
+
+| | DeepLinkNow | Rift | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | 50 links and 10,000 events a month, one custom domain, deferred deep linking | [1] |
+| Paid plans | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Pro $18/mo (2,000 links, 100,000 events), Business $55/mo, Scale $199/mo. Hard limits, no overage. | [1] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Created first, with POST /v1/links | [3] |
+| Deferred matching | The link page copies the link before the App Store, and the SDK reads it on first launch. A scored match is the backup. | Clipboard on iOS and install referrer on Android. No fingerprint fallback is documented, so a refused paste means no match. | [2] |
+| SDKs | iOS, Android, React Native (with Expo) and a Flutter SDK (pub.dev `deeplinknow`), plus an MCP server | iOS, Android and a web SDK, plus an MCP server and a CLI. No React Native or Flutter SDK in the docs. | [5] |
+| Custom domain | $49/mo (Startup) | One on the free plan. It's what enables Universal Links and App Links. | [1] [4] |
+
+## Where DeepLinkNow is ahead
+
+- Native iOS (Swift) and Android (Kotlin) SDKs, a Flutter SDK (pub.dev `deeplinknow`), a React Native SDK with an Expo config plugin, an Expo Router helper and a useDeferredDeepLink() hook, and an MCP server so coding agents can set it up.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- No attribution, no advertising IDs, no ATT prompt. A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+
+## Pick Rift if…
+
+- You want a custom domain on a free plan, or a $18 paid tier, and you're fine creating each link.
+- You're building for AI agents: Rift resolves links as JSON and ships an MCP server and a CLI.
+
+Sources: [1] [5]
+
+If you ship React Native, or need a backup when iOS users refuse the paste, try mine.
+
+## The pricing math
+
+Rift bills on links and events: 50 links and 10,000 events free, 2,000 links and 100,000 events for $18. Its pricing doesn't define an event. [1]
+
+An app that needs 500 links is on Rift Pro at $18. On DeepLinkNow, 500 distinct paths fit the free plan while the app stays under 25,000 monthly users, then it's $49. Past my free plan, Rift is cheaper.
+
+## Switching from Rift
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the Rift SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does Rift's pricing compare with DeepLinkNow's?
+
+Rift bills on links and events: 50 links and 10,000 events free, 2,000 links and 100,000 events for $18. Its pricing doesn't define an event. An app that needs 500 links is on Rift Pro at $18. On DeepLinkNow, 500 distinct paths fit the free plan while the app stays under 25,000 monthly users, then it's $49. Past my free plan, Rift is cheaper.
+
+### When is Rift the better choice?
+
+You want a custom domain on a free plan, or a $18 paid tier, and you're fine creating each link. You're building for AI agents: Rift resolves links as JSON and ships an MCP server and a CLI.
+
+### Can I run DeepLinkNow next to Rift?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [Rift](https://riftl.ink/)
+2. [Rift: deferred deep linking](https://riftl.ink/docs/deferred)
+3. [Rift: links](https://riftl.ink/docs/links)
+4. [Rift: domains](https://riftl.ink/docs/domains)
+5. [Rift llms.txt](https://riftl.ink/llms.txt)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/linktrace
+
+# DeepLinkNow vs LinkTrace
+
+Install attribution and referral links over REST. Facts as of October 21, 2026, each with a public source.
+
+LinkTrace is a REST API for install attribution and referral links, with no SDK to add. It's cheap and says it's privacy-first. It matches by fingerprint only, and Universal Links and App Links are on its top plan.
+
+| | DeepLinkNow | LinkTrace | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | 100 links and 1,000 attributed installs, once. Paid plans refresh monthly. | [1] |
+| Paid plans | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Growth $9.99/mo (1,000 links, 10,000 installs), Scale $29.99/mo (unlimited) | [1] |
+| Universal Links and App Links | Every plan, on yourapp.deeplinknow.com or your own domain | Scale only, on a yourbrand.linktrace.in subdomain | [1] [2] |
+| Deferred matching | The link page copies the link before the App Store, and the SDK reads it on first launch. A scored match is the backup. | Fingerprint only, for 24 hours. No install referrer. The result is attributed true or false. | [2] |
+| SDK | iOS, Android, React Native (with Expo) and a Flutter SDK (pub.dev `deeplinknow`) | None. A REST API with copy-paste examples. | [3] |
+| Advertising IDs | Never read. No ATT prompt. | Not used | [2] |
+
+## Where DeepLinkNow is ahead
+
+- iOS clipboard handoff on every plan: the link page copies the link and the SDK reads it on first launch.
+- Native iOS (Swift) and Android (Kotlin) SDKs, a Flutter SDK (pub.dev `deeplinknow`), a React Native SDK with an Expo config plugin, an Expo Router helper and a useDeferredDeepLink() hook, and an MCP server so coding agents can set it up.
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- Hosted in Sydney (Vercel syd1, database in AWS ap-southeast-2), if that matters to your users or your lawyers.
+
+## Pick LinkTrace if…
+
+- You don't want an SDK in the app, and fingerprint matching alone is enough.
+- You want referral tracking with referrer IDs for $9.99 a month.
+
+Sources: [3] [1] [2]
+
+If you want the install referrer on Android and the clipboard on iOS, which are exact when they work, try mine.
+
+## The pricing math
+
+LinkTrace bills flat per plan on links and attributed installs: $9.99 for 10,000 installs a month, $29.99 unlimited. I bill on monthly active users. [1]
+
+20,000 installs a month with Universal Links: LinkTrace Scale, $29.99. On DeepLinkNow it depends on monthly users: free at 20,000, $49 at 60,000. Below 25,000 users I'm free; above it LinkTrace is cheaper.
+
+## Switching from LinkTrace
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the LinkTrace SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does LinkTrace's pricing compare with DeepLinkNow's?
+
+LinkTrace bills flat per plan on links and attributed installs: $9.99 for 10,000 installs a month, $29.99 unlimited. I bill on monthly active users. 20,000 installs a month with Universal Links: LinkTrace Scale, $29.99. On DeepLinkNow it depends on monthly users: free at 20,000, $49 at 60,000. Below 25,000 users I'm free; above it LinkTrace is cheaper.
+
+### When is LinkTrace the better choice?
+
+You don't want an SDK in the app, and fingerprint matching alone is enough. You want referral tracking with referrer IDs for $9.99 a month.
+
+### Can I run DeepLinkNow next to LinkTrace?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [LinkTrace pricing](https://linktrace.in/pricing/)
+2. [LinkTrace llms.txt](https://linktrace.in/llms.txt)
+3. [LinkTrace FAQ](https://linktrace.in/faq/)
+4. [LinkTrace API reference](https://linktrace.in/documentation/api-reference/)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/appsonair
+
+# DeepLinkNow vs AppsOnAir
+
+App platform with an AppLink deep linking module. Facts as of October 21, 2026, each with a public source.
+
+AppsOnAir sells CodePush, app distribution and push, and AppLink is its deep linking module. It has a real Firebase importer that reads Google Takeout exports. There's no AppLink on the free plan, and the custom domain is an add-on.
+
+| | DeepLinkNow | AppsOnAir | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | No AppLink on the free plan | [1] |
+| Cheapest plan with deep links | $0, $49 or $149 a month, published, billed monthly. Enterprise from $500 a month | Pro with AppLink only, $34.98/mo, as the pricing calculator showed it. Other prices printed on the same page disagree. | [1] |
+| Custom domain | $49/mo (Startup) | An add-on, $19.99/mo | [1] |
+| Deferred window | 1 hour | 1 hour by default; longer windows depend on the plan | [2] |
+| What the app gets | A confidence score from 0 to 100 and a HIGH, MEDIUM or LOW label. You pick the threshold. | Organic or non-organic. No score. | [2] |
+| Firebase links | No importer. FDL-style long links on your domain hand the app the link parameter. | Imports Google Takeout CSV exports of your Firebase links | [3] |
+
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Published prices: $0, $49 or $149 a month. You only talk to me if you want Enterprise.
+- Your own domain from $49 a month on Startup, set up in the dashboard.
+- Every fingerprint match comes back with a 0 to 100 score and a HIGH, MEDIUM or LOW label, so you decide what to trust.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+
+## Pick AppsOnAir if…
+
+- You're leaving Firebase with a large Takeout export and want it imported.
+- You already use AppsOnAir for CodePush or push and want one vendor.
+
+Sources: [3] [1]
+
+If deep links are all you need, you don't need the bundle around them.
+
+## The pricing math
+
+AppsOnAir prices AppLink as a module on a base plan: Pro is $9.99 plus $24.99 for AppLink (50,000 app links), Pro Plus is $24.99 plus $49.99 (250,000). [1]
+
+One app with a custom domain: $34.98 plus $19.99, so $54.97 a month on AppsOnAir, and $49 on DeepLinkNow. If you already pay AppsOnAir for another module, AppLink adds $24.99 plus the domain.
+
+## Switching from AppsOnAir
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the AppsOnAir SDK once the links you've already shared stop getting clicks.
+
+## Questions
+
+### How does AppsOnAir's pricing compare with DeepLinkNow's?
+
+AppsOnAir prices AppLink as a module on a base plan: Pro is $9.99 plus $24.99 for AppLink (50,000 app links), Pro Plus is $24.99 plus $49.99 (250,000). One app with a custom domain: $34.98 plus $19.99, so $54.97 a month on AppsOnAir, and $49 on DeepLinkNow. If you already pay AppsOnAir for another module, AppLink adds $24.99 plus the domain.
+
+### When is AppsOnAir the better choice?
+
+You're leaving Firebase with a large Takeout export and want it imported. You already use AppsOnAir for CodePush or push and want one vendor.
+
+### Can I run DeepLinkNow next to AppsOnAir?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [AppsOnAir pricing](https://www.appsonair.com/plans-pricing)
+2. [AppsOnAir AppLink overview](https://documentation.appsonair.com/MobileQuickstart/AppLink/overview.html)
+3. [AppsOnAir AppLink FAQs](https://documentation.appsonair.com/MobileQuickstart/AppLink/applink-faqs.html)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/urlgenius
+
+# DeepLinkNow vs URLgenius
+
+SDK-free app linking. Facts as of October 21, 2026, each with a public source.
+
+URLgenius works differently from everything else here. There's no SDK: it opens apps through URL schemes, and many of its customers link into other companies' apps, such as Amazon listings. Deferred deep linking exists, on its Custom plan.
+
+| | DeepLinkNow | URLgenius | Sources |
+|---|---|---|---|
+| Free plan | Free up to 25,000 monthly active users, deferred deep links included. No card. | Starter: the first 500 clicks free during a qualified trial, no deferred deep links | [1] |
+| Deferred deep links | Included on every plan, free one too | Custom plan only, from $199/mo for brands, through Contact us | [1] |
+| What you pay for | Monthly active users (devices that open your app with the SDK). Each distinct link path counts once toward the link limit (1,000 on the free plan). | Clicks: $0.02 each on Growth, with discounts after 10,000 | [1] |
+| Custom domain | $49/mo (Startup) | One branded domain for $49 more on Growth | [1] |
+| How links open the app | Universal Links and App Links, with the AASA and assetlinks files hosted for you | URL schemes. Universal Links aren't used, and the screen needs a URL scheme. | [2] |
+| API | Management API on Startup and up | Enterprise plans | [2] |
+
+## Where DeepLinkNow is ahead
+
+- A free plan up to 25,000 monthly active users, with deferred deep links and no card.
+- Published prices: $0, $49 or $149 a month. You only talk to me if you want Enterprise.
+- Any path on your link domain is already a link, with no prefix and nothing to create first.
+- Native iOS (Swift) and Android (Kotlin) SDKs, a Flutter SDK (pub.dev `deeplinknow`), a React Native SDK with an Expo config plugin, an Expo Router helper and a useDeferredDeepLink() hook, and an MCP server so coding agents can set it up.
+- Free AASA, assetlinks.json and ad-block list checkers, no sign-up needed.
+
+## Pick URLgenius if…
+
+- You link into other companies' apps (Amazon, Instagram, TikTok), which is most of URLgenius's business.
+- You can't ship an app update or add an SDK.
+- Your links are shared inside Instagram and Facebook and must get out of the in-app browser.
+
+Sources: [4] [2]
+
+If you're linking into your own app and want the context to survive an install, that's what I do.
+
+## The pricing math
+
+URLgenius bills per click: $0.02 on Growth, with discounts after 10,000. Deferred deep linking is on the Custom plan from $199 a month. I bill on monthly active users. [1]
+
+50,000 clicks a month on Growth is at most $1,000, plus $49 for a branded domain, and still no deferred links. On DeepLinkNow that depends on users, not clicks: free up to 25,000 monthly users, then $49. If your links get a few hundred clicks a month and you don't need deferred links, URLgenius costs a few dollars.
+
+## Switching from URLgenius
+
+1. Add the DLN SDK next to the one you have and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Keep URLgenius for links into other companies' apps. I only open yours.
+
+## Questions
+
+### How does URLgenius's pricing compare with DeepLinkNow's?
+
+URLgenius bills per click: $0.02 on Growth, with discounts after 10,000. Deferred deep linking is on the Custom plan from $199 a month. I bill on monthly active users. 50,000 clicks a month on Growth is at most $1,000, plus $49 for a branded domain, and still no deferred links. On DeepLinkNow that depends on users, not clicks: free up to 25,000 monthly users, then $49. If your links get a few hundred clicks a month and you don't need deferred links, URLgenius costs a few dollars.
+
+### When is URLgenius the better choice?
+
+You link into other companies' apps (Amazon, Instagram, TikTok), which is most of URLgenius's business. You can't ship an app update or add an SDK. Your links are shared inside Instagram and Facebook and must get out of the in-app browser.
+
+### Can I run DeepLinkNow next to URLgenius?
+
+Yes. The SDK doesn't depend on any other deep linking SDK, so you can ship both, move your link domain over, and remove the old one later.
+
+## Sources
+
+1. [URLgenius pricing](https://app.urlgeni.us/pricing)
+2. [URLgenius FAQ](https://app.urlgeni.us/faq)
+3. [URLgenius: deferred deep linking](https://app.urlgeni.us/deferred-deep-linking)
+4. [URLgenius: app linking](https://app.urlgeni.us/app-linking)
 
 DeepLinkNow is not affiliated with the vendors compared here.

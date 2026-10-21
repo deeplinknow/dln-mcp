@@ -44,8 +44,10 @@ export const INSTALL: Record<Platform, string> = {
     "```",
   ].join("\n"),
   flutter: [
-    "There is no Flutter SDK: Flutter apps call the native iOS and Android SDKs through a platform channel.",
-    "Follow https://deeplinknow.com/docs/flutter.md (add both native SDKs, the Associated Domains entitlement and the Android intent filter, then the Dart, Swift and Kotlin channel code).",
+    "```sh",
+    "flutter pub add deeplinknow",
+    "```",
+    "The `deeplinknow` plugin wraps the native iOS and Android SDKs. Add `applinks:<alias>.deeplinknow.com` to Associated Domains (iOS) and an `autoVerify` https intent filter for it (Android); details in https://deeplinknow.com/docs/flutter.md.",
   ].join("\n"),
   ios: [
     "Swift Package Manager or CocoaPods: see https://deeplinknow.com/docs/ios.md#installation.",
@@ -101,17 +103,19 @@ Linking.addEventListener("url", ({ url }) => handleUrl(url));`,
     lang: "typescript",
   },
   flutter: {
-    code: `// DeepLinkNowChannel is the platform-channel class from https://deeplinknow.com/docs/flutter.md
+    code: `import 'package:deeplinknow/deeplinknow.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await DeepLinkNowChannel.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+  // Public key (dln_pub_…) from the dashboard's API Keys page. Never throws.
+  await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
 
-  // After an install: the link the user tapped before installing
-  final link = await DeepLinkNowChannel.checkDeferredDeepLink();
-  runApp(MyApp(initialPath: link?['path'] as String?));
+  // After an install: the link the user tapped before installing (null otherwise)
+  final link = await DeepLinkNow.checkDeferredDeepLink();
+  runApp(MyApp(initialRoute: link?.path ?? '/'));
 }
-// App already installed: receive Universal Links / App Links with a package such as
-// app_links and route on the URL's path and query (see the Flutter guide).`,
+// App already installed: receive Universal Links / App Links with app_links >= 7.0.0
+// and route with await DeepLinkNow.parseDeepLink(url) (see the Flutter guide).`,
     lang: "dart",
   },
   ios: {

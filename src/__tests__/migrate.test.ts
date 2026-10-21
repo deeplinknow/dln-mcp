@@ -39,8 +39,8 @@ describe("migrate_from", () => {
         "DeepLinkNow.parseDeepLink(url)",
       ],
       flutter: [
-        "DeepLinkNowChannel.initialize(",
-        "DeepLinkNowChannel.checkDeferredDeepLink()",
+        "DeepLinkNow.initialize(",
+        "DeepLinkNow.checkDeferredDeepLink()",
       ],
       ios: [
         "DeepLinkNow.initialize(config: DLNConfig(apiKey:",

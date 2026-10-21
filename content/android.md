@@ -22,14 +22,14 @@ You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.2.0")
+    implementation("com.deeplinknow:dln-android:1.3.0")
 }
 ```
 
 ```gradle
 // build.gradle
 dependencies {
-    implementation 'com.deeplinknow:dln-android:1.2.0'
+    implementation 'com.deeplinknow:dln-android:1.3.0'
 }
 ```
 
