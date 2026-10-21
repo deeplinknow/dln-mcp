@@ -22,6 +22,28 @@ It also exposes `deeplinknow://llms.txt` and `deeplinknow://docs/{page}` as reso
 
 Requires Node.js 20 or later. The server runs locally over stdio.
 
+One click, no key needed:
+
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=deeplinknow&config=eyJjb21tYW5kIjoibnB4IC15IEBkZWVwbGlua25vdy9tY3AifQ%3D%3D)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522deeplinknow%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522%2540deeplinknow%252Fmcp%2522%255D%257D)
+
+Claude Code, one line:
+
+```sh
+claude mcp add deeplinknow -- npx -y @deeplinknow/mcp
+```
+
+The docs, setup and domain-check tools work without an account or key. Add a private key only for `list_links` and `create_link` (see the per-client configs below). More on [deeplinknow.com/docs/mcp](https://deeplinknow.com/docs/mcp).
+
+### Try it
+
+Once it's installed, ask your agent:
+
+- "Use DeepLinkNow to add deferred deep linking to this Expo app. Our link domain is myapp.deeplinknow.com."
+- "Check whether links.example.com's AASA and assetlinks.json files are set up correctly."
+- "We use Firebase Dynamic Links. Plan our move to DeepLinkNow for this app."
+- "A DeepLinkNow match came back MEDIUM with a score of 58. Should we route it?"
+
 ### Claude Code
 
 ```sh
