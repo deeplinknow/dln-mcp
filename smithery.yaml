@@ -1,0 +1,16 @@
+# Smithery (smithery.ai): runs the published npm package locally over stdio.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        description: Optional. Your app's private DeepLinkNow API key (dln_priv_...), only for list_links and create_link (paid plans).
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "@deeplinknow/mcp"],
+      env: config.apiKey ? { DEEPLINKNOW_API_KEY: config.apiKey } : {}
+    })
+  exampleConfig: {}

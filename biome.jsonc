@@ -1,0 +1,59 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core", "ultracite/biome/vitest"],
+  "files": {
+    "includes": [
+      "!**/node_modules",
+      "!**/dist",
+      "!**/content",
+      "!**/pnpm-lock.yaml"
+    ]
+  },
+  "linter": {
+    "rules": {
+      "complexity": {
+        // Mirrors packages/dln-rn: cognitive-complexity scores flag the ported validators, which must stay line-for-line comparable with web/utils/tools.
+        "noExcessiveCognitiveComplexity": "off",
+        // Mirrors packages/dln-rn: the "simplified" form (De Morgan rewrites) is often less readable.
+        "useSimplifiedLogicExpression": "off"
+      },
+      "performance": {
+        // Mirrors packages/dln-rn: hoisting every regex literal hurts locality for no measurable gain.
+        "useTopLevelRegex": "off",
+        // Mirrors packages/dln-rn: sequential awaits are deliberate (redirect hops are followed one at a time).
+        "noAwaitInLoops": "off"
+      },
+      "style": {
+        // Mirrors packages/dln-rn: short nested ternaries read fine.
+        "noNestedTernary": "off",
+        // Mirrors packages/dln-rn: `if (arr.length)` is clear.
+        "useExplicitLengthCheck": "off"
+      },
+      "suspicious": {
+        // Mirrors packages/dln-rn: async signatures are kept for interface consistency (tool handlers, injected deps).
+        "useAwait": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      // Tests: `!` on fixture lookups fails loudly if wrong, and `() => {}` no-op mocks are idiomatic.
+      "includes": ["**/__tests__/**"],
+      "linter": {
+        "rules": {
+          "style": { "noNonNullAssertion": "off" },
+          "suspicious": { "noEmptyBlockStatements": "off" }
+        }
+      }
+    },
+    {
+      // The package entry point re-exports the server factory and its types for programmatic use.
+      "includes": ["src/server.ts"],
+      "linter": {
+        "rules": {
+          "performance": { "noBarrelFile": "off", "noReExportAll": "off" }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.deeplinknow/mcp",
+  "title": "DeepLinkNow",
+  "description": "Set up deferred deep linking, check Universal Link and App Link domains, migrate from FDL/Branch.",
+  "websiteUrl": "https://deeplinknow.com",
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@deeplinknow/mcp",
+      "version": "1.0.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "DEEPLINKNOW_API_KEY",
+          "description": "Private API key (dln_priv_...) for list_links and create_link. Optional; paid plans.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

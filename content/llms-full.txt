@@ -1,0 +1,1344 @@
+# DeepLinkNow: full documentation
+
+> Deep links and deferred deep links for iOS, Android and React Native, without the attribution and ad tracking of Branch or AppsFlyer. Any path on your domain works as a link.
+
+- DeepLinkNow does deep linking only: no attribution, no ad tracking, no advertising IDs, no ATT prompt, no cross-app data.
+- Any path and query on an app's link domain (yourapp.deeplinknow.com, or a custom domain on paid plans) is a working deep link. Nothing has to be created in a dashboard first.
+- After an install, the SDK's checkDeferredDeepLink() returns the path and query the user originally tapped.
+- iOS: the link page copies the link to the clipboard before the App Store; the SDK reads it on first launch (iOS shows an Allow Paste prompt). A scored fingerprint match is the backup.
+- Android: the click ID goes through the Google Play Install Referrer, which is exact for Play Store installs. A scored fingerprint match is the backup.
+- Fingerprint matches come with confidence_score (0-100) and match_quality (HIGH, MEDIUM, LOW). An IP match is not required. The developer picks the threshold.
+- Retention: A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- SDKs: iOS (Swift, SPM and CocoaPods), Android (Kotlin, Maven Central com.deeplinknow:dln-android), React Native and Expo (npm @deeplinknow/react-native). Flutter apps call the native SDKs through a platform channel.
+- Apple App Site Association and assetlinks.json are generated and hosted for every app.
+- Link pages load no analytics or tracking scripts, and no DeepLinkNow domain is on the AdGuard or EasyPrivacy block lists.
+
+---
+Source: https://deeplinknow.com/docs/quickstart
+
+# Quick Start Guide
+
+Get deferred deep linking working in a few minutes: one call to initialize, one call to get the deferred link.
+
+## Prerequisites
+
+1. A DeepLinkNow account and an app created in the dashboard. Your app gets the link domain `<alias>.deeplinknow.com`.
+2. Your app's **public** API key (`dln_pub_…`) from the dashboard's **API Keys** page. Creating an app issues one public key (for the SDKs) and one private key (for your server only). The public key is always shown on the API Keys page. The private key is shown once; if you lose it, regenerate it there.
+3. Your iOS **Team ID** and **Bundle ID**, and your Android **package name** and **SHA-256 certificate fingerprints**, entered in the app's settings so DeepLinkNow can serve the `.well-known` files.
+
+Any path on your link domain works as a deep link with no setup: `https://<alias>.deeplinknow.com/products/123?ref=newsletter` delivers `/products/123` with `ref=newsletter` to your app.
+
+To try an SDK before creating an app, use the demo key `test_api_key`. It returns mock responses.
+
+## Choose Your Platform
+
+- [React Native / Expo](#react-native)
+- [iOS (Swift)](#ios-swift)
+- [Android (Kotlin)](#android-kotlin)
+- Flutter: there is no Flutter SDK. See the [Flutter integration guide](/docs/flutter), which wraps the native SDKs.
+
+## React Native
+
+```bash
+npx expo install @deeplinknow/react-native   # Expo (development build)
+npm install @deeplinknow/react-native && cd ios && pod install   # bare React Native
+```
+
+With Expo, add the config plugin with your link domains (`["@deeplinknow/react-native", { "domains": ["<alias>.deeplinknow.com"] }]`), which sets up Associated Domains and the Android intent filter. In bare React Native, add `applinks:<alias>.deeplinknow.com` and an `autoVerify` https intent filter by hand (see the [React Native docs](/docs/react-native)). Then:
+
+```typescript
+import DeepLinkNow from "@deeplinknow/react-native";
+
+await DeepLinkNow.initialize("dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+
+const link = await DeepLinkNow.checkDeferredDeepLink();
+if (link) {
+  // link.source: "clipboard" (iOS), "referrer" (Android) or "fingerprint"
+  router.push({ pathname: link.path, params: link.queryParams });
+}
+```
+
+**→ Next**: [Full React Native documentation](/docs/react-native)
+
+## iOS (Swift)
+
+```ruby
+pod 'DeepLinkNow', '~> 1.2'
+```
+
+Or add `https://github.com/deeplinknow/dln-ios` with Swift Package Manager. Add `applinks:<alias>.deeplinknow.com` under **Signing & Capabilities → Associated Domains**. Then:
+
+```swift
+import DeepLinkNow
+
+await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"))
+
+if let link = await DeepLinkNow.checkDeferredDeepLink() {
+    // Pasteboard first (exact), then fingerprint (scored)
+    router.open(path: link.path, query: link.queryParams)
+}
+```
+
+Handle Universal Links when the app is already installed:
+
+```swift
+.onOpenURL { url in
+    if let link = DeepLinkNow.parseLink(url) {
+        router.open(path: link.path, query: link.queryParams)
+    }
+}
+```
+
+**→ Next**: [Full iOS documentation](/docs/ios)
+
+## Android (Kotlin)
+
+```kotlin
+dependencies {
+    implementation("com.deeplinknow:dln-android:1.2.0")
+}
+```
+
+Add an `autoVerify` https intent filter for `<alias>.deeplinknow.com` to your link-handling activity. Then:
+
+```kotlin
+// Application.onCreate
+DLN.init(context = this, apiKey = "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+
+// First activity
+lifecycleScope.launch {
+    DLN.checkDeferredDeepLink().getOrNull()?.let { link ->
+        // Install Referrer first (exact), then fingerprint (scored)
+        router.open(link.path, link.queryParams)
+    }
+}
+```
+
+**→ Next**: [Full Android documentation](/docs/android)
+
+## How the deferred link is found
+
+| | iOS | Android |
+|---|---|---|
+| Step 1 (exact) | Pasteboard: the landing page copied the tapped link | Play Install Referrer: the landing page passed a click ID to the Play Store |
+| Step 2 (best effort) | Fingerprint match | Fingerprint match |
+| Result | `DeferredDeepLink` with `source`, `confidenceScore`, `matchQuality` | same |
+
+Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `fullPath`, `url`, `source`, `confidenceScore` (0–100) and `matchQuality` (`HIGH` / `MEDIUM` / `LOW`). Exact sources report `100` / `HIGH`.
+
+### About fingerprint matching
+
+- The server compares the device with clicks on your link pages from the last 1 hour and returns scored candidates. Each has a `confidence_score` (0–100) and a `match_quality`: `HIGH` (75+), `MEDIUM` (50–74), `LOW` (30–49).
+- An IP match is not required, because iCloud Private Relay and carrier NAT often give the app a different IP from the browser.
+- The time score decays across the 1-hour claim window, and missing data never counts as a match.
+- You choose the threshold. The optional `minConfidence` filter is off by default, so you get the server's best candidate and decide what to do with its `matchQuality`.
+
+## Troubleshooting
+
+### Links open the browser instead of the app
+
+- Check the dashboard settings (Team ID + Bundle ID, package name + SHA-256 fingerprints).
+- Open `https://<alias>.deeplinknow.com/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`. Changes can take up to 5 minutes to appear.
+- iOS caches the association file when the app is installed. Reinstall after changing it.
+- Android: run `adb shell pm get-app-links <your.package>`.
+
+### No deferred link on first launch
+
+- Make sure you call `checkDeferredDeepLink()` after `initialize`, and that the install happened within 1 hour of the click for fingerprint matching.
+- It returns a link only once per install. Call `resetDeferredDeepLink()` (or pass `force: true`) to test again.
+- Turn on `enableLogs` to see each step's outcome.
+- On iOS, tapping **Don't Allow** on the paste prompt skips the pasteboard step; fingerprint matching still runs.
+
+## Need Help?
+
+- Email: support@deeplinknow.com
+- [Integration checklist](/docs/integration-checklist)
+
+---
+Source: https://deeplinknow.com/docs/ios
+
+# DeepLinkNow iOS SDK
+
+## Overview
+
+The DeepLinkNow iOS SDK (`DeepLinkNow`, Swift) does one job: when a user taps one of your links before installing your app, it hands your app the path and query they tapped on first launch. It is not an analytics or attribution SDK. It never reads the advertising identifier (IDFA), never triggers the App Tracking Transparency prompt, and needs no ATT consent.
+
+On iOS the deferred link comes from two sources, tried in this order:
+
+1. **Pasteboard (exact).** The landing page copies the tapped link before sending the user to the App Store. On first launch the SDK reads it back.
+2. **Fingerprint (best effort).** If the pasteboard has no link of yours, the SDK asks the server for scored candidates from clicks on your link pages in the last hour.
+
+You get both with one call: `checkDeferredDeepLink()`.
+
+## Requirements
+
+- iOS 13.0+
+- Swift 5.5+ (async/await)
+- Xcode 13.2+
+- No `Info.plist` keys are required. iOS has no pasteboard usage-description key.
+
+## Installation
+
+### Swift Package Manager
+
+In Xcode choose **File > Add Package Dependencies...** and enter `https://github.com/deeplinknow/dln-ios`, or add it to `Package.swift`:
+
+```swift
+.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.2.0")
+```
+
+### CocoaPods
+
+```ruby
+pod 'DeepLinkNow', '~> 1.2'
+```
+
+Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.2)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
+
+### Universal Links (Associated Domains)
+
+1. In the dashboard, set your app's **Team ID / App ID prefix** and **Bundle ID**. DeepLinkNow serves `https://<alias>.deeplinknow.com/.well-known/apple-app-site-association` (and the same file for a verified custom domain) from those values. Changes are live within 5 minutes.
+2. In Xcode, open **Signing & Capabilities → Associated Domains** and add `applinks:<alias>.deeplinknow.com`, plus `applinks:<your-custom-domain>` if you have one.
+3. Pass incoming URLs to `parseLink` (see [Handling links that open the app](#handling-links-that-open-the-app)).
+
+## Getting Started
+
+### Initialize the SDK
+
+Use your app's **public** API key (`dln_pub_…`) from the dashboard's **API Keys** page. The SDK endpoints (`/api/v1/sdk/*`) reject private keys, and a private key must never ship inside an app.
+
+```swift
+import DeepLinkNow
+
+let config = DLNConfig(
+    apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    enableLogs: false           // true while developing
+)
+do {
+    let app = try await DeepLinkNow.initializeThrowing(config: config)
+    print("Link domains:", app.linkDomains)
+} catch let error as DeepLinkNowError {
+    // .invalidApiKey, .accountInactive, .noCredits, .rateLimited, .network, .server,
+    // .invalidResponse, .invalidConfiguration
+    print("DeepLinkNow init failed:", error.code)
+}
+```
+
+`DLNConfig` options:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `apiKey` | — | Your public key |
+| `enableLogs` | `false` | Debug logging with the `[DeepLinkNow]` prefix. The API key is never logged. |
+| `baseUrl` | `https://deeplinknow.com` | API base URL. A trailing `/` is fine. |
+| `timeout` | `10` s | Per request |
+| `retryAttempts` | `2` | Retries for transient failures (network, timeouts, 5xx, 429) |
+
+`await DeepLinkNow.initialize(config:)` never throws: it logs failures instead, and you can check `DeepLinkNow.isInitialized` and `DeepLinkNow.initializationError` (or `DeepLinkNow.lastError`). Initialization never reads the pasteboard and never asks for a permission. A non-https `baseUrl` is refused (http only for localhost).
+
+For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
+
+### Get the deferred deep link
+
+Call `checkDeferredDeepLink()` once on launch, after `initialize`:
+
+```swift
+if let link = await DeepLinkNow.checkDeferredDeepLink() {
+    // link.path        "/products/123"
+    // link.queryParams ["ref": .string("newsletter")]
+    // link.source      .clipboard or .fingerprint
+    // link.confidenceScore 0-100, link.matchQuality HIGH / MEDIUM / LOW
+    router.open(path: link.path, query: link.queryParams)
+}
+// No link? Carry on to your normal start screen.
+```
+
+`checkDeferredDeepLink()` never throws. `nil` means there was no link, or the check failed (not initialized, offline, invalid key…). A failure is logged as a warning and kept in `DeepLinkNow.lastError` (a `DeepLinkNowError`: `.notInitialized`, `.network`, `.rateLimited`, …) until the next successful check, and it doesn't use up the first launch, so the SDK tries again on the next call. If you'd rather handle the error yourself, use the throwing variant:
+
+```swift
+do {
+    if let link = try await DeepLinkNow.checkDeferredDeepLinkThrowing() {
+        router.open(path: link.path, query: link.queryParams)
+    }
+} catch let error as DeepLinkNowError {
+    print("Deferred check failed:", error.code)
+}
+```
+
+How `checkDeferredDeepLink()` works:
+
+1. **Pasteboard**: if the pasteboard holds a link on one of your link domains (`<alias>.deeplinknow.com` or your verified custom domain), it is parsed locally and returned with `source = .clipboard`, `confidenceScore = 100`, `matchQuality = .high`. No server match call is made.
+2. **Fingerprint**: otherwise the SDK calls `POST /api/v1/sdk/match` and returns the best candidate the server sent, with the server's `confidence_score` and `match_quality` unchanged (`source = .fingerprint`).
+
+It returns a link at most once per install. After a definitive answer (a link, or nothing found) later calls return `nil` without touching the pasteboard or the network. Errors don't count, so an offline first launch can still succeed on the next launch.
+
+Options (`DLNDeferredOptions`):
+
+| Option | Default | Meaning |
+|---|---|---|
+| `minConfidence` | `nil` (off) | Discard fingerprint candidates whose `confidence_score` is below this value. Pasteboard results are exact and are never filtered. |
+| `useClipboard` | `true` | Read the pasteboard first. Set `false` to skip it and rely on fingerprinting only. |
+| `force` | `false` | Ignore the "already checked" flag (useful while testing). |
+
+```swift
+let link = await DeepLinkNow.checkDeferredDeepLink(
+    DLNDeferredOptions(minConfidence: 50, useClipboard: true)
+)
+```
+
+`DeepLinkNow.resetDeferredDeepLink()` clears the first-launch flag so you can test the flow again without reinstalling.
+
+### The result: `DLNDeferredDeepLink`
+
+| Field | Meaning |
+|---|---|
+| `path` | The tapped path up to the first `?`, not decoded, always starting with `/` |
+| `queryParams` | Query parameters with `URLSearchParams` semantics: a string, a flag (`?k`), or a list for repeated keys |
+| `fullPath` | Path and query exactly as tapped |
+| `url` | Absolute https URL of the link |
+| `source` | `.clipboard` or `.fingerprint` (`.referrer` exists for parity with Android) |
+| `confidenceScore` | `0`–`100`. Server score for fingerprint results, `100` for the pasteboard |
+| `matchQuality` | `HIGH` (75+), `MEDIUM` (50–74) or `LOW` (30–49) |
+| `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | From the server (fingerprint results) |
+| `matchDetails` | Score breakdown (fingerprint results) |
+
+## How fingerprint matching works
+
+Fingerprint matching is the backup for when the pasteboard is empty, the user denied the paste prompt, or you set `useClipboard: false`.
+
+- The landing page stores a small description of the click: IP address, device class, OS version, screen size, language, time zone, and the path and query that were tapped.
+- On first launch the SDK sends the same kind of description of the device. The server compares it with clicks on **your** app's link pages from the **last 1 hour** and returns up to 10 candidates, best first.
+- Each candidate has a `confidence_score` (0–100) and a `match_quality`: `HIGH` (75+), `MEDIUM` (50–74) or `LOW` (30–49). Candidates below 30 are not returned.
+- **An IP match is not required.** iCloud Private Relay and carrier NAT often give the app a different IP from Safari, so the server also considers clicks from the same device class with a matching screen or OS version.
+- Score weights: IP 40, device 30 (platform, OS version, device class, screen), time 20, locale 10 (language, time zone). Missing data never counts as agreement.
+- The time score decays linearly across the 1-hour claim window: full marks within 5 minutes, half at about 32 minutes, zero at 60 minutes.
+- **You choose the threshold.** `checkDeferredDeepLink()` returns the server's best candidate as is. The `minConfidence` filter is off by default. Use `matchQuality` or `confidenceScore` to decide, for example, to route `HIGH` matches straight away and confirm `MEDIUM` or `LOW` ones with the user.
+
+Once a device gets a `MEDIUM` or better match, the click is claimed for that device, so another phone on the same Wi-Fi doesn't receive it too.
+
+## The pasteboard and the paste prompt
+
+On iOS 16+, reading a link that Safari copied shows the system prompt **"App would like to paste from Safari"**. The SDK keeps this to a minimum:
+
+- It reads the pasteboard only during `checkDeferredDeepLink()` on first launch (or when you call `checkClipboard()` yourself), never at init and never in the background.
+- On iOS 14+ it first checks for a web URL with `detectPatterns`, which shows no prompt. If there is no URL, it skips straight to fingerprinting.
+- If the user taps **Don't Allow**, that counts as "nothing found" and the SDK continues with fingerprinting.
+- It never writes to or clears the pasteboard, and never logs content that is not one of your links.
+
+If you don't want the prompt, pass `useClipboard: false`, or show your own "Paste your link" button with `UIPasteControl` (iOS 16+) and pass the result to `parseLink`.
+
+## Handling links that open the app
+
+When the app is already installed, a Universal Link opens it directly. Parse it with `parseLink`, which returns `nil` for URLs that are not on your link domains:
+
+```swift
+// SwiftUI
+.onOpenURL { url in
+    if let link = DeepLinkNow.parseLink(url) {
+        router.open(path: link.path, query: link.queryParams)
+    }
+}
+
+// UIKit (SceneDelegate)
+func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+    guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+          let url = userActivity.webpageURL,
+          let link = DeepLinkNow.parseLink(url) else { return }
+    router.open(path: link.path, query: link.queryParams)
+}
+```
+
+Deferred results and direct opens use the same parsing rules, so you can route both the same way.
+
+## Low-level API
+
+The building blocks behind `checkDeferredDeepLink()` stay available:
+
+| Method | Purpose |
+|---|---|
+| `findDeferredUserThrowing()` / `findDeferredUser()` | Every fingerprint candidate from `/api/v1/sdk/match`, unfiltered: `confidence_score`, `match_quality`, `match_details` and `deeplink` (with `full_path` and `query_params`), plus `ttl_seconds`. `findDeferredUser()` returns `nil` on any error; `findDeferredUserThrowing()` throws a `DeepLinkNowError` |
+| `checkClipboard()` | The pasteboard text if it is exactly one URL on your link domains, else `nil` (may show the paste prompt) |
+| `hasDeepLinkToken()` / `hasDeepLinkTokenAsync()` | Cheap "is there probably a URL on the pasteboard" check that never reads the content and shows no prompt |
+| `parseLink(_:)` | Validate and parse a URL on your link domains into `DLNParsedLink` (`path`, `queryParams`, `fullPath`, `url`) |
+| `parseDeepLink(_:)` | Older tuple form `(path, parameters)` of `parseLink(_:)` |
+| `isValidDomain(_:)` | The host rule: exactly `<alias>.deeplinknow.com` or a verified custom domain, case-insensitive |
+| `createDeepLink(path:customParameters:)` | Build an https link on your primary link domain that `parseLink` round-trips (`nil` before init) |
+| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.2.0"`) |
+
+If you call these yourself, check the pasteboard before fingerprinting:
+
+```swift
+if let copied = DeepLinkNow.checkClipboard(),
+   let url = URL(string: copied),
+   let link = DeepLinkNow.parseLink(url) {
+    router.open(path: link.path, query: link.queryParams)
+} else if let response = try? await DeepLinkNow.findDeferredUserThrowing(),
+          let best = response.matches.first(where: { $0.deeplink != nil }) {
+    // best.confidenceScore and best.matchQuality: your call
+}
+```
+
+## Privacy
+
+The SDK sends only what matching needs: a synthesized user agent, platform, OS version, device class (`iPhone`/`iPad`), screen size in points with scale, language, time zone, and the app-scoped vendor ID (IDFV), which the server uses only to claim a click for this install. `advertising_id` is always `null`. The server reads the IP from the connection. The SDK stores nothing on the device except the first-launch flag, and ships a privacy manifest (`PrivacyInfo.xcprivacy`) with tracking set to false.
+
+## API endpoints used
+
+| Endpoint | Key | Used by |
+|---|---|---|
+| `POST /api/v1/sdk/init` | public | `initialize`: validates the key and account, returns your link domains |
+| `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+
+Both calls are exempt from per-minute rate limits; `init` counts toward monthly active users.
+
+## Support
+
+- Email: support@deeplinknow.com
+- Source and issues: [github.com/deeplinknow/dln-ios](https://github.com/deeplinknow/dln-ios)
+
+---
+Source: https://deeplinknow.com/docs/android
+
+# DeepLinkNow Android SDK
+
+## Overview
+
+The DeepLinkNow Android SDK (`com.deeplinknow:dln-android`, Kotlin, class `com.deeplinknow.DLN`) does one job: when a user taps one of your links before installing your app, it hands your app the path and query they tapped on first launch. It is not an analytics or attribution SDK. It never reads the Google Advertising ID (GAID) and needs no ad-related permissions.
+
+On Android the deferred link comes from two sources, tried in this order:
+
+1. **Play Install Referrer (exact).** The landing page adds a click ID to the Play Store link. After install, the SDK reads it from the Install Referrer API and looks up the exact click.
+2. **Fingerprint (best effort).** If there is no usable referrer, the SDK asks the server for scored candidates from clicks on your link pages in the last hour.
+
+You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does not read the clipboard by default.
+
+## Requirements
+
+- Android API level 24+
+- Kotlin 1.9+, AndroidX
+- `android.permission.INTERNET` (declared by the library)
+
+## Installation
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("com.deeplinknow:dln-android:1.2.0")
+}
+```
+
+```gradle
+// build.gradle
+dependencies {
+    implementation 'com.deeplinknow:dln-android:1.2.0'
+}
+```
+
+The library declares `android.permission.INTERNET` itself and ships consumer R8/ProGuard rules for its model classes. The Install Referrer library adds its own permission.
+
+### App Links
+
+1. In the dashboard, set your **package name** and your **SHA-256 signing certificate fingerprints** (debug, upload and Play App Signing). DeepLinkNow serves `https://<alias>.deeplinknow.com/.well-known/assetlinks.json` (and the same file for a verified custom domain). Changes are live within 5 minutes.
+2. Add an intent filter to the activity that handles links:
+
+```xml
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="https" android:host="myapp.deeplinknow.com" />
+    <!-- add <data android:host="go.myapp.com" /> for a custom domain -->
+</intent-filter>
+```
+
+3. Verify with `adb shell pm get-app-links <your.package>`.
+
+## Getting Started
+
+### Initialize the SDK
+
+Use your app's **public** API key (`dln_pub_…`) from the dashboard's **API Keys** page. The SDK endpoints (`/api/v1/sdk/*`) reject private keys, and a private key must never ship inside an app.
+
+```kotlin
+import com.deeplinknow.DLN
+
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        // Returns immediately. Init and the Install Referrer read run in the background.
+        DLN.init(this, "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", enableLogs = BuildConfig.DEBUG) { result ->
+            // Optional, called once on the main thread with Result<DLNAppInfo>
+            result.onFailure { Log.w("App", "DeepLinkNow init failed: ${it.message}") }
+        }
+    }
+}
+```
+
+`DLN.init` returns immediately and never blocks the main thread. It validates the key, loads your link domains and starts reading the Install Referrer in the background. Observe the outcome with `onComplete`, `DLN.awaitInitialization()` or `DLN.isInitialized`.
+
+Optional parameters: `baseUrl` (default `https://deeplinknow.com`), `timeoutMs` (default 10 000), `retryAttempts` (default 2), and `overrideScreenWidth` / `overrideScreenHeight` / `overridePixelRatio` for reproducible matching on emulators.
+
+For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
+
+### Get the deferred deep link
+
+Call `checkDeferredDeepLink()` once on launch, after `DLN.init`. It never throws: it returns a Kotlin `Result`.
+
+```kotlin
+lifecycleScope.launch {
+    DLN.checkDeferredDeepLink()
+        .onSuccess { link ->
+            if (link != null) {
+                // link.path        "/products/123"
+                // link.queryParams {"ref": QueryValue.Single("newsletter")}
+                // link.source      REFERRER or FINGERPRINT
+                // link.confidenceScore 0-100, link.matchQuality HIGH / MEDIUM / LOW
+                router.open(link.path, link.queryParams)
+            }
+        }
+        .onFailure { e ->
+            val error = e as DLNException // error.code: NOT_INITIALIZED, NETWORK, RATE_LIMITED, ...
+            // Errors are not "no link": the SDK tries again on the next call.
+        }
+}
+```
+
+`checkDeferredDeepLink` is a static method on `DLN`. From Java, use the callback overload:
+
+```java
+DLN.checkDeferredDeepLink(null, false, new DeferredDeepLinkCallback() {
+    @Override public void onResult(DeferredDeepLink link, DLNException error) { /* main thread */ }
+});
+```
+
+How `checkDeferredDeepLink()` works:
+
+1. **Install Referrer**: the SDK waits for the referrer, extracts the `fp_id` (or `deeplink_id`) the landing page added, and calls `GET /api/v1/sdk/referrer-lookup`. A hit is returned with `source = REFERRER`, `confidenceScore = 100`, `matchQuality = HIGH`.
+2. **Fingerprint**: otherwise it calls `POST /api/v1/sdk/match` and returns the best candidate the server sent, with the server's `confidence_score` and `match_quality` unchanged (`source = FINGERPRINT`).
+
+It returns a link at most once per install. After a definitive answer (a link, or nothing found) later calls return `null` without network access. Errors such as being offline don't count, so the next launch tries again. The Play Store keeps the referrer for 90 days.
+
+Parameters:
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `minConfidence` | `null` (off) | Discard fingerprint candidates whose `confidence_score` is below this value. Referrer results are exact and never filtered. |
+| `force` | `false` | Ignore the "already checked" flag (useful while testing). |
+
+`DLN.resetDeferredDeepLink()` clears the first-launch flag and the cached referrer result so you can test the flow again without reinstalling.
+
+### The result: `DeferredDeepLink`
+
+| Field | Meaning |
+|---|---|
+| `path` | The tapped path up to the first `?`, not decoded, always starting with `/` |
+| `queryParams` | `Map<String, QueryValue>` with `URLSearchParams` semantics: `Single(value)`, `Flag` (`?k` or `?k=`), `Multiple(values)` (repeated key). `toPlain()` gives `String`, `true` or `List<String>` |
+| `fullPath` | Path and query exactly as tapped |
+| `url` | Absolute https URL of the link |
+| `source` | `DeferredDeepLinkSource.REFERRER` or `FINGERPRINT` (`.value` gives `"referrer"` / `"fingerprint"`) |
+| `confidenceScore` | `0`–`100`. Server score for fingerprint results, `100` for the referrer |
+| `matchQuality` | `MatchQuality.HIGH` (75+), `MEDIUM` (50–74) or `LOW` (30–49) |
+| `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | From the server |
+| `matchDetails` | Score breakdown (fingerprint results) |
+
+## How fingerprint matching works
+
+Fingerprint matching is the backup for installs without a usable referrer (for example, an install that didn't come through your link's Play Store button).
+
+- The landing page stores a small description of the click: IP address, device class, OS version, screen size, language, time zone, and the path and query that were tapped.
+- The SDK sends the same kind of description of the device. The server compares it with clicks on **your** app's link pages from the **last 1 hour** and returns up to 10 candidates, best first.
+- Each candidate has a `confidence_score` (0–100) and a `match_quality`: `HIGH` (75+), `MEDIUM` (50–74) or `LOW` (30–49). Candidates below 30 are not returned.
+- An IP match is not required. Clicks from the same device class with a matching screen or OS version are considered too.
+- Score weights: IP 40, device 30, time 20, locale 10. Missing data never counts as agreement. The time score decays linearly across the 1-hour claim window.
+- **You choose the threshold.** The `minConfidence` filter is off by default. Use `matchQuality` or `confidenceScore` to decide what to route automatically and what to confirm with the user.
+
+## Handling links that open the app
+
+Pass incoming URLs to `DLN.parseDeepLink(url)` in both `onCreate` and `onNewIntent`. It returns `ParsedDeepLink(path, queryParams, fullPath, url)`, or `null` for URLs that are not on your link domains:
+
+```kotlin
+override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    handleIntent(intent)
+}
+
+private fun handleIntent(intent: Intent) {
+    val url = intent.data?.toString() ?: return
+    DLN.parseDeepLink(url)?.let { link ->
+        router.open(link.path, link.queryParams)
+    }
+}
+```
+
+Alternatively register a callback with `DLN.setDeepLinkCallback(...)` and call `DLN.handleDeepLink(url)`.
+
+Deferred results and direct opens use the same parsing rules, so you can route both the same way. The host rule accepts exactly `<alias>.deeplinknow.com` and your verified custom domain, case-insensitively. Other `deeplinknow.com` subdomains and lookalike hosts are rejected.
+
+## Low-level API
+
+| Method | Purpose |
+|---|---|
+| `DLN.findDeferredUserResult()` | `Result<MatchResponse>`: every fingerprint candidate from `/api/v1/sdk/match`, unfiltered, in server order, each with `confidenceScore`, `matchQuality`, `matchDetails` and `deeplink` (`queryParams`, `fullPath`) |
+| `getInstance().findDeferredUser()` | 1.0 API: `MatchResponse?` (null on any error) |
+| `getInstance().getDeferredDeepLink()` | 1.0 API: the cached referrer result, returned on every launch. Prefer `DLN.checkDeferredDeepLink()` |
+| `getInstance().getReferrerData()` | The raw Install Referrer data (`referrerString`, `fpId`, `deeplinkId`, `processedAt`) |
+| `getInstance().checkClipboard()` | The clipboard text if, trimmed, it is exactly one URL on your link domains, else `null`. On Android 12+ reading shows a system "pasted" toast |
+| `getInstance().hasDeepLinkToken()` | Checks the clip description only (no toast) |
+| `DLN.parseDeepLink(url)` | `ParsedDeepLink(path, queryParams, fullPath, url)` or `null` |
+| `DLN.isValidDomain(host)` | The host rule |
+| `getInstance().parseDeepLink(url)` | Deprecated 1.0 API returning a `Pair` (decoded path, first value of repeated keys); use `DLN.parseDeepLink(url)` |
+
+## Privacy
+
+The SDK sends only what matching needs: a synthesized user agent, platform, OS version, device model, screen size, language, time zone, and `ANDROID_ID` (app-scoped), which the server uses only to claim a click for this install. `advertising_id` is always `null`. The server reads the IP from the connection. On the device the SDK stores only the first-launch flag and the referrer result, excluded from backups.
+
+## API endpoints used
+
+| Endpoint | Key | Used by |
+|---|---|---|
+| `POST /api/v1/sdk/init` | public | `DLN.init` |
+| `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` (referrer step) |
+| `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+
+These calls are exempt from per-minute rate limits; `init` counts toward monthly active users.
+
+## Support
+
+- Email: support@deeplinknow.com
+- Source and issues: [github.com/deeplinknow/dln-android](https://github.com/deeplinknow/dln-android)
+
+---
+Source: https://deeplinknow.com/docs/react-native
+
+# DeepLinkNow React Native SDK
+
+## Overview
+
+`@deeplinknow/react-native` gives React Native and Expo apps the same two calls as the native SDKs: initialize, and get the deferred deep link. It wraps the native iOS and Android SDKs, so it behaves the same way and returns the same shapes on both platforms.
+
+When a user taps one of your links before installing your app, `checkDeferredDeepLink()` returns the path and query they tapped:
+
+- **iOS**: 1. the link the landing page copied to the pasteboard (exact), then 2. fingerprint matching (best effort).
+- **Android**: 1. the Play Install Referrer (exact), then 2. fingerprint matching (best effort).
+
+It is not an analytics or attribution SDK. It never reads advertising identifiers and never triggers the App Tracking Transparency prompt.
+
+## Requirements
+
+- React Native 0.81+ (old or new architecture), or Expo SDK 54+ with a development build
+- iOS 13+, Android API 24+
+- Expo Go has no native code, so only the fingerprint step works there (the SDK logs a warning). Use a development build.
+
+## Installation
+
+### Expo
+
+```sh
+npx expo install @deeplinknow/react-native
+```
+
+Add the config plugin with your link domains. It adds `applinks:<domain>` to the iOS Associated Domains and an auto-verified App Links intent filter on Android for each domain:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      ["@deeplinknow/react-native", { "domains": ["myapp.deeplinknow.com", "go.myapp.com"] }]
+    ]
+  }
+}
+```
+
+Then rebuild the native projects: `npx expo prebuild` (or let EAS Build do it), then `npx expo run:ios` / `npx expo run:android`.
+
+### Bare React Native
+
+```sh
+npm install @deeplinknow/react-native
+cd ios && pod install
+```
+
+If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.2.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
+
+Autolinking picks the right native module (TurboModule on the new architecture, bridge module on the old one). Add the Associated Domains entitlement (`applinks:myapp.deeplinknow.com`) on iOS and an `autoVerify` https intent filter for your link domains on Android. See the [iOS](/docs/ios) and [Android](/docs/android) docs for details and the dashboard settings that serve the `.well-known` files.
+
+## Getting Started
+
+### Initialize the SDK
+
+Use your app's **public** API key (`dln_pub_…`) from the dashboard's **API Keys** page. The SDK endpoints (`/api/v1/sdk/*`) reject private keys, and a private key must never ship inside an app.
+
+```typescript
+import DeepLinkNow from "@deeplinknow/react-native";
+
+const app = await DeepLinkNow.initialize("dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", {
+  enableLogs: __DEV__,
+});
+// app: DLNAppInfo { id, alias, domains, accountStatus, creditsRemaining }, or null if it failed
+```
+
+Config options: `enableLogs` (default `false`), `baseUrl` (default `https://deeplinknow.com`), `timeoutMs` (default 10 000), `retryAttempts` (default 2). `initialize` makes one `/init` request per call and resolves with `DLNAppInfo`. It never rejects: if it fails it resolves `null`, logs a warning and keeps the error in `DeepLinkNow.lastError`, so no `try`/`catch` is needed. `DeepLinkNow.isInitialized()` tells you whether it succeeded.
+
+For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
+
+### Get the deferred deep link
+
+```typescript
+const link = await DeepLinkNow.checkDeferredDeepLink();
+if (link) {
+  // link.path            "/products/123"
+  // link.queryParams     { ref: "newsletter" }
+  // link.source          "clipboard" | "referrer" | "fingerprint"
+  // link.confidenceScore 0-100
+  // link.matchQuality    "HIGH" | "MEDIUM" | "LOW"
+  router.push({ pathname: link.path, params: link.queryParams });
+}
+```
+
+`checkDeferredDeepLink` never throws or rejects. "No link" and a failure (offline, invalid key, not initialized) both resolve `null`, so the app just carries on to its normal start screen. To tell them apart, check `DeepLinkNow.lastError`: a `DLNError` with `code` (`notInitialized`, `network`, `rateLimited`, …), plus `status` and `serverMessage` when the server sent one. It is cleared by the next successful call.
+
+It returns a link at most once per install. After a definitive answer (a link, or nothing found) later calls resolve to `null` without network, clipboard or referrer access. Errors don't count, so an offline first launch can still succeed on the next launch.
+
+Options:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `minConfidence` | unset (off) | Discard fingerprint candidates whose `confidence_score` is below this value. Clipboard and referrer results are exact and never filtered. |
+| `useClipboard` | `true` | iOS only: read the pasteboard first (may show the iOS 16+ paste prompt). Ignored on Android. |
+| `force` | `false` | Ignore the "already checked" flag (useful while testing). |
+
+```typescript
+const link = await DeepLinkNow.checkDeferredDeepLink({ minConfidence: 50 });
+```
+
+`await DeepLinkNow.resetDeferredDeepLink()` clears the first-launch state and the cached referrer result so you can test again without reinstalling. `clearReferrerCache()` is a deprecated alias.
+
+### The result: `DeferredDeepLink`
+
+| Field | Type | Meaning |
+|---|---|---|
+| `path` | `string` | The tapped path up to the first `?`, not decoded, always starting with `/` |
+| `queryParams` | `Record<string, string \| true \| string[]>` | Query parameters with `URLSearchParams` semantics; `true` for a bare flag, an array for repeated keys |
+| `fullPath` | `string` | Path and query exactly as tapped |
+| `url` | `string` | Absolute https URL of the link |
+| `source` | `"clipboard" \| "referrer" \| "fingerprint"` | Which signal produced the answer |
+| `confidenceScore` | `number` | `0`–`100`. Server score for fingerprint results, `100` for clipboard and referrer |
+| `matchQuality` | `"HIGH" \| "MEDIUM" \| "LOW"` | `HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49 |
+| `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | optional | From the server |
+| `matchDetails` | optional | Score breakdown (fingerprint results) |
+
+## How fingerprint matching works
+
+- The landing page stores a small description of the click: IP address, device class, OS version, screen size, language, time zone, and the path and query that were tapped.
+- The SDK sends the same kind of description of the device. The server compares it with clicks on your app's link pages from the **last 1 hour** and returns up to 10 candidates, best first, each with a `confidence_score` (0–100) and a `match_quality` (`HIGH`, `MEDIUM`, `LOW`). Candidates below 30 are not returned.
+- An IP match is not required (iCloud Private Relay and carrier NAT often change the IP between browser and app).
+- Missing data never counts as agreement, and the time score decays linearly across the 1-hour claim window.
+- **You choose the threshold.** `minConfidence` is off by default. Use `matchQuality` or `confidenceScore` to decide what to route automatically and what to confirm with the user.
+
+## Handling links that open the app
+
+```typescript
+import { Linking } from "react-native";
+
+function handleUrl(url: string | null) {
+  if (!url) return;
+  const link = DeepLinkNow.parseDeepLink(url);
+  if (link) router.push({ pathname: link.path, params: link.queryParams });
+}
+
+Linking.getInitialURL().then(handleUrl);
+Linking.addEventListener("url", ({ url }) => handleUrl(url));
+```
+
+`parseDeepLink(url)` returns `{ path, queryParams, fullPath, url }`, or `null` for URLs that are not on your link domains (exactly `<alias>.deeplinknow.com` or your verified custom domain). The older `parameters` field is kept as a deprecated alias of `queryParams`.
+
+## Low-level API
+
+| Method | Purpose |
+|---|---|
+| `findDeferredUser()` | Every fingerprint candidate from `/api/v1/sdk/match` in the server's snake_case shape: `matches[]` with `confidence_score`, `match_quality`, `match_details`, `deeplink` (`target_url`, `full_path`, `query_params`, …), plus `ttl_seconds`. Resolves `null` on failure (never rejects), with the error in `DeepLinkNow.lastError` |
+| `getReferrerData()` | Android only: raw Install Referrer data (`null` on iOS) |
+| `checkClipboard()` | The clipboard text if it is exactly one URL on your link domains, else `null` |
+| `hasDeepLinkToken()` | Cheap "is there probably a URL on the clipboard" check that shows no paste prompt |
+| `parseDeepLink(url)` | Validate and parse a URL on your link domains |
+| `isValidDomain(host)` | The host rule |
+| `getModuleType()` | `"expo" \| "turbo" \| "bridge" \| "none"`: which native module is in use |
+
+## Privacy
+
+The native SDKs send only what matching needs (platform, OS version, device class, screen, language, time zone, and an app-scoped install ID used only to claim a click). `advertising_id` is always `null`. The server reads the IP from the connection.
+
+## API endpoints used
+
+| Endpoint | Key | Used by |
+|---|---|---|
+| `POST /api/v1/sdk/init` | public | `initialize` (exactly one call per `initialize`) |
+| `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` on Android |
+| `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+
+## Support
+
+- Email: support@deeplinknow.com
+- Package: [npmjs.com/package/@deeplinknow/react-native](https://www.npmjs.com/package/@deeplinknow/react-native)
+
+---
+Source: https://deeplinknow.com/docs/flutter
+
+# Flutter Integration Guide
+
+## Overview
+
+There is no official Flutter SDK or pub package for DeepLinkNow. This is an integration guide: it shows how to call the native [iOS](/docs/ios) and [Android](/docs/android) SDKs from a Flutter app through a platform channel. All deferred-link logic (pasteboard and Install Referrer, fingerprint matching, first-launch handling, link parsing) runs in the native SDKs. Your Dart code only receives the result.
+
+## 1. Add the native SDKs
+
+**iOS** (`ios/Podfile`):
+
+```ruby
+target 'Runner' do
+  use_frameworks!
+  pod 'DeepLinkNow', '~> 1.2'
+end
+```
+
+Run `cd ios && pod install`.
+
+**Android** (`android/app/build.gradle`):
+
+```gradle
+dependencies {
+    implementation 'com.deeplinknow:dln-android:1.2.0'
+}
+```
+
+## 2. Configure your link domains
+
+- **iOS**: in Xcode (`ios/Runner.xcworkspace`), add **Associated Domains** → `applinks:<alias>.deeplinknow.com` (and your custom domain).
+- **Android**: in `android/app/src/main/AndroidManifest.xml`, add an `autoVerify` https intent filter for `<alias>.deeplinknow.com` to `MainActivity`.
+- In the dashboard, set your Team ID + Bundle ID and package name + SHA-256 fingerprints so the `.well-known` files are served.
+
+## 3. Dart side
+
+```dart
+import 'package:flutter/services.dart';
+
+class DeepLinkNowChannel {
+  static const _channel = MethodChannel('com.deeplinknow/sdk');
+
+  /// Use your app's public key (dln_pub_...).
+  static Future<void> initialize(String apiKey) =>
+      _channel.invokeMethod('initialize', {'apiKey': apiKey});
+
+  /// Returns {path, queryParams, fullPath, url, source, confidenceScore, matchQuality} or null.
+  static Future<Map<String, dynamic>?> checkDeferredDeepLink({double? minConfidence}) async {
+    final result = await _channel.invokeMethod<Map>(
+      'checkDeferredDeepLink',
+      {'minConfidence': minConfidence},
+    );
+    return result?.cast<String, dynamic>();
+  }
+
+  static Future<void> resetDeferredDeepLink() =>
+      _channel.invokeMethod('resetDeferredDeepLink');
+}
+```
+
+## 4. iOS side (`ios/Runner/AppDelegate.swift`)
+
+```swift
+import Flutter
+import UIKit
+import DeepLinkNow
+
+@main
+@objc class AppDelegate: FlutterAppDelegate {
+  override func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+  ) -> Bool {
+    let controller = window?.rootViewController as! FlutterViewController
+    let channel = FlutterMethodChannel(name: "com.deeplinknow/sdk",
+                                       binaryMessenger: controller.binaryMessenger)
+
+    channel.setMethodCallHandler { call, result in
+      let args = call.arguments as? [String: Any]
+      switch call.method {
+      case "initialize":
+        guard let apiKey = args?["apiKey"] as? String else {
+          result(FlutterError(code: "INVALID_ARGUMENT", message: "apiKey is required", details: nil))
+          return
+        }
+        Task {
+          await DeepLinkNow.initialize(config: DLNConfig(apiKey: apiKey))
+          result(DeepLinkNow.isInitialized)
+        }
+      case "checkDeferredDeepLink":
+        let minConfidence = args?["minConfidence"] as? Double
+        Task {
+          do {
+            // Pasteboard first, then fingerprint
+            let link = try await DeepLinkNow.checkDeferredDeepLinkThrowing(
+              DLNDeferredOptions(minConfidence: minConfidence))
+            result(link.map { [
+              "path": $0.path,
+              "queryParams": $0.queryParams.mapValues { $0.anyValue },
+              "fullPath": $0.fullPath,
+              "url": $0.url,
+              "source": $0.source.rawValue,
+              "confidenceScore": $0.confidenceScore,
+              "matchQuality": $0.matchQuality.rawValue,
+            ] })
+          } catch {
+            result(FlutterError(code: "DLN_ERROR", message: "\(error)", details: nil))
+          }
+        }
+      case "resetDeferredDeepLink":
+        DeepLinkNow.resetDeferredDeepLink()
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
+    GeneratedPluginRegistrant.register(with: self)
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+```
+
+## 5. Android side (`MainActivity.kt`)
+
+```kotlin
+import com.deeplinknow.DLN
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+
+class MainActivity : FlutterActivity() {
+    private val scope = MainScope()
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.deeplinknow/sdk")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "initialize" -> {
+                        val apiKey = call.argument<String>("apiKey")
+                        if (apiKey == null) {
+                            result.error("INVALID_ARGUMENT", "apiKey is required", null)
+                        } else {
+                            DLN.init(applicationContext, apiKey, onComplete = { r ->
+                                result.success(r.isSuccess)
+                            })
+                        }
+                    }
+                    "checkDeferredDeepLink" -> scope.launch {
+                        // Install Referrer first, then fingerprint
+                        DLN.checkDeferredDeepLink(minConfidence = call.argument<Double>("minConfidence"))
+                            .onSuccess { link ->
+                                result.success(link?.let {
+                                    mapOf(
+                                        "path" to it.path,
+                                        "fullPath" to it.fullPath,
+                                        "url" to it.url,
+                                        "queryParams" to it.queryParams.mapValues { (_, v) -> v.toPlain() },
+                                        "source" to it.source.value,
+                                        "confidenceScore" to it.confidenceScore,
+                                        "matchQuality" to it.matchQuality.name,
+                                    )
+                                })
+                            }
+                            .onFailure { result.error("DLN_ERROR", it.message, null) }
+                    }
+                    "resetDeferredDeepLink" -> {
+                        DLN.resetDeferredDeepLink()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+}
+```
+
+## 6. Use it in your app
+
+```dart
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DeepLinkNowChannel.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+
+  final link = await DeepLinkNowChannel.checkDeferredDeepLink();
+  runApp(MyApp(initialPath: link?['path'] as String?));
+}
+```
+
+Each result carries `source` (`clipboard`, `referrer` or `fingerprint`), `confidenceScore` (0–100) and `matchQuality` (`HIGH`, `MEDIUM`, `LOW`). Exact sources report `100` / `HIGH`. For fingerprint results you choose the threshold; the optional `minConfidence` filter is off by default. See [how fingerprint matching works](/docs/ios#how-fingerprint-matching-works).
+
+## Links that open the installed app
+
+Use a Flutter package such as `app_links` to receive Universal Links / App Links, then route on the URL's path and query. To apply the same domain and parsing rules as the native SDKs, add a `parseDeepLink` method to the channel that calls `DeepLinkNow.parseLink` (iOS) or `DLN.parseDeepLink` (Android).
+
+## Need Help?
+
+- Email: support@deeplinknow.com
+- [iOS SDK](/docs/ios) · [Android SDK](/docs/android)
+
+---
+Source: https://deeplinknow.com/docs/integration-checklist
+
+# Integration Checklist
+
+An end-to-end checklist for integrating DeepLinkNow into your mobile app.
+
+## Dashboard setup
+
+### Account and app
+
+- [ ] Create a DeepLinkNow account and an app in the dashboard
+- [ ] Choose your app alias (e.g. `myapp` → `myapp.deeplinknow.com`)
+- [ ] Copy your keys from the **API Keys** page. Each app gets one **public** key (`dln_pub_…`, for the SDKs) and one **private** key (`dln_priv_…`, for your server only). The public key is always shown there. The private key is shown once; regenerate it there if you lose it, and choose how long the old one keeps working (24 hours by default, or immediately if it leaked).
+- [ ] Optional: configure a fallback URL for desktop visitors
+
+### iOS settings
+
+- [ ] Bundle ID (e.g. `com.company.myapp`)
+- [ ] Team ID / App ID prefix (from your Apple Developer account)
+- [ ] App Store ID (once the app is published)
+
+### Android settings
+
+- [ ] Package name (e.g. `com.company.myapp`)
+- [ ] SHA-256 certificate fingerprints: Play App Signing, upload key and debug (`keytool -list -v -keystore ~/.android/debug.keystore`)
+
+### Verify the .well-known files
+
+- [ ] `https://myapp.deeplinknow.com/.well-known/apple-app-site-association` contains your Team ID and Bundle ID
+- [ ] `https://myapp.deeplinknow.com/.well-known/assetlinks.json` contains your package name and fingerprints
+
+These files are served from your saved settings and cached for up to 5 minutes.
+
+## SDK installation
+
+- [ ] **React Native / Expo**: `npx expo install @deeplinknow/react-native` (development build, not Expo Go) or `npm install @deeplinknow/react-native` + `pod install`
+- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.2'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
+- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.2.0")` (the library declares `INTERNET` itself)
+- [ ] **Flutter**: there is no Flutter SDK; follow the [Flutter integration guide](/docs/flutter), which wraps the native SDKs
+- [ ] iOS: Associated Domains `applinks:myapp.deeplinknow.com` (and your custom domain)
+- [ ] Android: `autoVerify` https intent filter for `myapp.deeplinknow.com` (and your custom domain)
+- [ ] No ATT prompt, IDFA, or advertising-ID permission is needed for DeepLinkNow
+
+## Initialization
+
+- [ ] Initialize once at app start with your **public** key (`dln_pub_…`)
+- [ ] Never ship your private key in an app
+- [ ] Handle an initialization failure (invalid key, inactive account, offline) separately from "no deferred link"
+- [ ] Use `enableLogs` only in development builds
+
+## Deferred deep linking
+
+- [ ] Call `checkDeferredDeepLink()` once on launch, after initialization
+- [ ] Route to `link.path` with `link.queryParams` when it returns a link
+- [ ] Decide your threshold for fingerprint results. Every result carries `confidenceScore` (0–100) and `matchQuality` (`HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49). The optional `minConfidence` filter is off by default.
+- [ ] Consider confirming `MEDIUM` or `LOW` fingerprint matches with the user before routing
+- [ ] iOS: decide whether to keep the pasteboard step (`useClipboard`, default `true`), which can show the iOS 16+ paste prompt
+- [ ] Treat errors as "try again later", not as "no link". The SDK retries on the next call.
+
+## Links that open the installed app
+
+- [ ] Pass incoming Universal Links / App Links to `parseDeepLink(url)`
+- [ ] Route deferred and direct links through the same function
+
+```typescript
+function route(path: string, query: Record<string, string | true | string[]>) {
+  switch (path) {
+    case "/product":
+      navigation.navigate("Product", { id: query.id });
+      break;
+    case "/category":
+      navigation.navigate("Category", { name: query.name });
+      break;
+    default:
+      navigation.navigate("Home");
+  }
+}
+```
+
+- [ ] Handle unknown paths gracefully
+
+## Testing
+
+### Direct links
+
+- [ ] Tap `https://myapp.deeplinknow.com/product?id=123` from Notes or Messages with the app installed: the app opens on the right screen
+- [ ] Android: `adb shell pm get-app-links <your.package>` shows your domains as verified
+
+### Deferred links
+
+- [ ] Uninstall the app, tap a link, install, open: the app lands on the right screen
+- [ ] iOS: test both **Allow** and **Don't Allow** on the paste prompt (Don't Allow falls back to fingerprint matching)
+- [ ] Android: test an install through the link's Play Store button (Install Referrer) and one without it (fingerprint)
+- [ ] Check the logs for each step's outcome, `source`, `confidenceScore` and `matchQuality`
+- [ ] Use `resetDeferredDeepLink()` or `force: true` to repeat the test without reinstalling
+- [ ] A click older than 1 hour is not offered as a fingerprint match
+
+### Edge cases
+
+- [ ] First launch offline: no crash, and the next launch still finds the link
+- [ ] Unknown path: falls back to a sensible screen
+- [ ] A link copied from another app's domain is ignored
+
+## Production readiness
+
+- [ ] Only the public key is in the app binary
+- [ ] Logging is off in release builds
+- [ ] `.well-known` files are correct for your release signing certificates
+- [ ] Privacy labels: the SDKs collect device characteristics and an app-scoped install ID for app functionality only, not for tracking
+
+## Optional
+
+- [ ] Custom domain (paid plans): add it under **Domains**, create the DNS record, wait for verification, then add it to Associated Domains and your intent filters
+- [ ] Customize the landing page (title, subtitle, button text, social preview)
+- [ ] Forward deferred-link events to your own analytics tool (DeepLinkNow does not do analytics)
+
+## Need Help?
+
+- [Quick Start](/docs/quickstart)
+- [iOS](/docs/ios), [Android](/docs/android), [React Native](/docs/react-native)
+- Email: support@deeplinknow.com
+
+---
+Source: https://deeplinknow.com/pricing
+
+# DeepLinkNow pricing
+
+Prices in USD, billed monthly. Cancel any time: paid plans keep their features until the end of the billing period.
+No free trial is needed: the Developer plan is free, with no card.
+
+## Developer: $0/month
+
+Deep links and deferred deep links for one app, free.
+
+- 15k SDK monthly active users
+- 1k deep links (distinct paths, on-demand included)
+- Single app on yourapp.deeplinknow.com
+- Just you (1 seat)
+- Universal Links, App Links and deferred deep links
+- iOS, Android and React Native SDKs
+- Click and install counts
+- Community support on Discord
+
+## Startup: $49/month
+
+Your own domain and a landing page that looks like your app.
+
+- 100k SDK monthly active users
+- 10k deep links (distinct paths, on-demand included)
+- Custom domains: your links on go.yourapp.com (up to 3)
+- Up to 3 apps
+- Up to 3 team members, with admin and member roles
+- Your branding on the link page, not ours
+- Custom link page text and buttons, per app or per link
+- Custom social previews for iMessage, Slack, WhatsApp and more
+- Link page translated into 14 languages
+- Link rules: allowed paths and a not-found redirect
+- Android: skip the link page, straight to Google Play
+- Management API (10k requests/mo)
+- Email support
+
+## Growth: $149/month
+
+For larger apps, or several apps under one account.
+
+- 500k SDK monthly active users
+- 50k deep links (distinct paths, on-demand included)
+- Unlimited custom domains
+- Unlimited apps
+- Up to 5 team members
+- Everything in Startup
+- Management API (50k requests/mo)
+- Email support
+
+## Enterprise: Custom
+
+Custom limits, a contract and priority support.
+
+- Custom MAU, link and API volume, including per-minute rate limits
+- Unlimited team members
+- Everything in Growth
+- Custom contract and invoicing
+- Priority support
+
+## Every plan, side by side
+
+| | Developer | Startup | Growth | Enterprise |
+|---|---|---|---|---|
+| SDK monthly active users | 15,000 | 100,000 | 500,000 | Custom |
+| Deep links (distinct paths, all-time, on-demand included) | 1,000 | 10,000 | 50,000 | Custom |
+| On-demand links: any path on your domain works, no setup | Yes | Yes | Yes | Yes |
+| Apps | 1 | 3 | Unlimited | Unlimited |
+| Team members (including you) | 1 | 3 | 5 | Unlimited |
+| Custom domains: your links on go.yourapp.com (one per app) | No | 3 | Unlimited | Unlimited |
+| Universal Links + App Links, hosted .well-known files | Yes | Yes | Yes | Yes |
+| Deferred deep links (Install Referrer, clipboard, fingerprint) | Yes | Yes | Yes | Yes |
+| iOS, Android and React Native SDKs | Yes | Yes | Yes | Yes |
+| Your branding on the link page (DLN branding removed) | No | Yes | Yes | Yes |
+| Custom title, subtitle and button text, per app or per link | No | Yes | Yes | Yes |
+| Custom social previews (title, description, image) for iMessage, Slack, WhatsApp, X and more | No | Yes | Yes | Yes |
+| Link page translated automatically into 14 languages | No | Yes | Yes | Yes |
+| Android: skip the link page and go straight to Google Play | No | Yes | Yes | Yes |
+| Link rules: turn off auto-created links, allow paths by regex, not-found redirect | No | Yes | Yes | Yes |
+| Management API (requests per month) | No | 10,000 | 50,000 | Custom |
+| API requests per minute, per key | 600 (SDK key only) | 600 | 1,200 | Custom |
+| Sign in with an email code, Google or GitHub | Yes | Yes | Yes | Yes |
+| Support | Discord | Email | Email | Priority |
+
+---
+Source: https://deeplinknow.com/compare
+
+# DeepLinkNow compared with Branch, Airbridge and AppsFlyer
+
+As of October 19, 2026. Each vendor's page links the public source for every claim.
+
+| | DeepLinkNow | Branch | Airbridge | AppsFlyer |
+|---|---|---|---|---|
+| Free plan with deferred deep links | Yes, up to 15,000 MAU | No | No | No |
+| Cheapest plan with a custom domain | $49/mo | $199/mo | From $40/mo | Custom price |
+| Links work without creating them first | Yes, any path | Long links only | No | No |
+| Reads advertising IDs | Never | By default | By default | Yes |
+| On ad-blocker lists | No | Yes | Yes | Yes |
+| Needs a sales call | Never | Essentials and Enterprise | Above Core | Every paid tier |
+
+- [DeepLinkNow vs Branch](https://deeplinknow.com/compare/branch.md): Branch dropped its free tier. Custom domains start at $199/mo.
+- [DeepLinkNow vs Airbridge](https://deeplinknow.com/compare/airbridge.md): An MMP from $40/mo. Your deferred link waits on the ATT prompt.
+- [DeepLinkNow vs AppsFlyer](https://deeplinknow.com/compare/appsflyer.md): No deferred deep links on the free plan. Paid tiers need a sales call.
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/branch
+
+# DeepLinkNow vs Branch
+
+Deep linking and attribution platform. Facts as of October 19, 2026, each with a public source.
+
+I used Branch on a real startup. It worked, mostly, until the bill and the ad blockers showed up. Branch is a fine product if you're a marketing team that wants attribution and campaign analytics. If you just want a link to open the right screen after install, you're paying for a lot you'll never open.
+
+| | DeepLinkNow | Branch | Sources |
+|---|---|---|---|
+| Free plan | Free up to 15,000 monthly active users. No card. | None. A 30-day trial needs a work email and a card, then moves to Intro at $39/mo. | [1] [2] |
+| Usage over the plan | Links and SDK calls keep working. I'll ask you to upgrade. | Billed per extra volume credit, link and click, uncapped. | [3] |
+| Custom domain | $49/mo (Startup) | Activation Basics, $199/mo | [4] |
+| iOS clipboard handoff | Included on every plan, free one too | NativeLink, a premium feature | [5] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Created in the dashboard or API, or long links with /a/key_live_… on a custom domain. Routing by path needs $deeplink_path and custom logic. | [6] [7] |
+| Advertising IDs | Never read. No ATT prompt. | Collected by default (FULL protection level: advertising IDs and device IDs) | [8] |
+| Ad-blocker lists | Not on any of them | Branch domains and its web SDK are on AdGuard and EasyPrivacy, and EasyPrivacy blocks about 4,195 Branch customer link domains. | [9] [10] |
+| Typical contract | $0, $49 or $149 a month, published, billed monthly | Median about $55K a year (Vendr, 61 deals) | [11] |
+
+## Pick Branch if…
+
+- You need attribution, ad network integrations and campaign analytics, and someone else's budget pays for it.
+- You want Journeys web banners and a marketing team running links without developers.
+
+## Switching from Branch
+
+1. Add the DLN SDK next to Branch and ship it.
+2. Point your link domain at DLN. Paths on it work straight away.
+3. Replace Branch's link callback with checkDeferredDeepLink() on first launch.
+4. Remove the Branch SDK in the next release.
+
+## Sources
+
+1. [Branch: Intro plan](https://help.branch.io/docs/branch-intro-plan)
+2. [Branch: trial](https://help.branch.io/docs/free-trial)
+3. [Branch: overages and billing](https://help.branch.io/docs/overages-and-billing)
+4. [Branch pricing](https://www.branch.io/pricing/)
+5. [Branch: NativeLink](https://help.branch.io/docs/nativelink-deferred-deep-linking)
+6. [Branch: creating a deep link](https://help.branch.io/docs/creating-a-deep-link)
+7. [Branch: routing](https://help.branch.io/using-branch/docs/routing)
+8. [Branch: consumer protection preferences](https://help.branch.io/developer-hub/docs/consumer-protection-preferences)
+9. [EasyPrivacy filter list](https://easylist.to/easylist/easyprivacy.txt)
+10. [AdGuard CNAME trackers: Branch](https://github.com/AdguardTeam/cname-trackers/blob/master/data/clickthroughs/branch_io.txt)
+11. [Vendr: Branch](https://vendr.com/marketplace/branch)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/airbridge
+
+# DeepLinkNow vs Airbridge
+
+Mobile measurement platform (MMP). Facts as of October 19, 2026, each with a public source.
+
+Airbridge is a mobile measurement platform with deep linking built in. It's cheaper than the big MMPs, but it's still an MMP: links get created up front, the SDK reads advertising IDs, and on iOS the deferred link can sit waiting for the user to answer the tracking prompt.
+
+| | DeepLinkNow | Airbridge | Sources |
+|---|---|---|---|
+| Free plan | Free up to 15,000 monthly active users. No card. | None on the pricing page. Core is from $40/mo after a 30-day trial. | [1] [2] |
+| What you pay for | Monthly active users, one flat price per plan | Data points: 500K a month on Core, then $0.0001 each | [2] |
+| Making links | Any path on your domain is already a link. Nothing to create. | Created first, in the dashboard, Google Sheets or the API. Custom domains must be a dedicated subdomain. | [3] |
+| Deferred link on iOS | Handed over on first launch. Nothing to wait for. | The SDK waits for the ATT answer (30 seconds by default) before delivering it | [4] |
+| Advertising IDs | Never read. No ATT prompt. | IDFA and GAID collected by default | [5] |
+| Ad-blocker lists | Not on any of them | SDK, attribution and event domains, plus a deferred-deeplink rule, on AdGuard's tracking list | [6] |
+
+## Pick Airbridge if…
+
+- You want a full MMP, with ad network integrations and attribution, at a lower entry price than AppsFlyer.
+
+## Switching from Airbridge
+
+1. Add the DLN SDK and ship it.
+2. Use your own domain's paths as links. You don't need to recreate the Airbridge links one by one.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Remove the Airbridge SDK, and its ATT prompt if deep linking was its only job.
+
+## Sources
+
+1. [Airbridge pricing](https://www.airbridge.io/en/pricing)
+2. [Airbridge Core plan](https://airbridge.io/en/plans/core)
+3. [Airbridge: tracking links](https://help.airbridge.io/en/deeplink-guides/understanding-tracking-link.md)
+4. [Airbridge React Native SDK](https://help.airbridge.io/en/deeplink-developers/react-native-sdk-v4.md)
+5. [Airbridge: identifiers](https://help.airbridge.io/en/guides/identifiers.md)
+6. [AdGuard Tracking Protection filter](https://filters.adtidy.org/extension/ublock/filters/3.txt)
+
+DeepLinkNow is not affiliated with the vendors compared here.
+
+---
+Source: https://deeplinknow.com/compare/appsflyer
+
+# DeepLinkNow vs AppsFlyer
+
+Mobile measurement platform (MMP). Facts as of October 19, 2026, each with a public source.
+
+AppsFlyer is the biggest attribution platform there is. It's built for paid user acquisition, and it's very good at that. Deferred deep linking is one feature inside it, and since 2026 it isn't on the free plan at all.
+
+| | DeepLinkNow | AppsFlyer | Sources |
+|---|---|---|---|
+| Free plan | Free up to 15,000 monthly active users. No card. | Zero plan: links and QR codes, but no deferred deep linking since its 2026 update | [1] [2] |
+| Cheapest plan with deferred deep links | $0, $49 or $149 a month, published, billed monthly | Deep Linking Standard, custom price | [1] |
+| Sales call | Never. Every plan is self-serve. | Every paid tier is "Request a demo" | [1] |
+| Custom domain | $49/mo (Startup) | Branded domains from the Advanced tier, custom price | [1] |
+| Ad-blocker lists | Not on any of them | 54 rules on AdGuard Tracking Protection, including onelink.me and the OneLink Smart Script | [3] |
+| Typical contract | $0, $49 or $149 a month, published, billed monthly | Median about $88.5K a year (Vendr, 130 deals) | [4] |
+
+## Pick AppsFlyer if…
+
+- You spend real money on paid user acquisition and need attribution, fraud protection and SKAdNetwork reporting.
+
+## Switching from AppsFlyer
+
+1. Add the DLN SDK and ship it.
+2. Use paths on your domain as links instead of OneLink templates.
+3. Read the link with checkDeferredDeepLink() on first launch.
+4. Keep AppsFlyer for attribution if you still need it. DLN doesn't care.
+
+## Sources
+
+1. [AppsFlyer deep linking pricing](https://www.appsflyer.com/pricing/deep-linking/)
+2. [AppsFlyer Zero plan update](https://www.appsflyer.com/zero-update-2026/)
+3. [AdGuard Tracking Protection filter](https://filters.adtidy.org/extension/ublock/filters/3.txt)
+4. [Vendr: AppsFlyer](https://www.vendr.com/marketplace/appsflyer)
+
+DeepLinkNow is not affiliated with the vendors compared here.

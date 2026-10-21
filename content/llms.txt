@@ -1,0 +1,59 @@
+# DeepLinkNow
+
+> Deep links and deferred deep links for iOS, Android and React Native, without the attribution and ad tracking of Branch or AppsFlyer. Any path on your domain works as a link.
+
+- DeepLinkNow does deep linking only: no attribution, no ad tracking, no advertising IDs, no ATT prompt, no cross-app data.
+- Any path and query on an app's link domain (yourapp.deeplinknow.com, or a custom domain on paid plans) is a working deep link. Nothing has to be created in a dashboard first.
+- After an install, the SDK's checkDeferredDeepLink() returns the path and query the user originally tapped.
+- iOS: the link page copies the link to the clipboard before the App Store; the SDK reads it on first launch (iOS shows an Allow Paste prompt). A scored fingerprint match is the backup.
+- Android: the click ID goes through the Google Play Install Referrer, which is exact for Play Store installs. A scored fingerprint match is the backup.
+- Fingerprint matches come with confidence_score (0-100) and match_quality (HIGH, MEDIUM, LOW). An IP match is not required. The developer picks the threshold.
+- Retention: A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days.
+- SDKs: iOS (Swift, SPM and CocoaPods), Android (Kotlin, Maven Central com.deeplinknow:dln-android), React Native and Expo (npm @deeplinknow/react-native). Flutter apps call the native SDKs through a platform channel.
+- Apple App Site Association and assetlinks.json are generated and hosted for every app.
+- Link pages load no analytics or tracking scripts, and no DeepLinkNow domain is on the AdGuard or EasyPrivacy block lists.
+
+## Docs
+
+- [Quickstart](https://deeplinknow.com/docs/quickstart.md): Create an app, add the SDK and handle your first deferred link.
+- [iOS SDK (Swift)](https://deeplinknow.com/docs/ios.md): Install with Swift Package Manager or CocoaPods, initialize, and read the deferred link on first launch.
+- [Android SDK (Kotlin)](https://deeplinknow.com/docs/android.md): Install from Maven Central, initialize, and read the deferred link via the Play Install Referrer.
+- [React Native and Expo SDK](https://deeplinknow.com/docs/react-native.md): The @deeplinknow/react-native package, a wrapper over the native SDKs.
+- [Flutter integration guide](https://deeplinknow.com/docs/flutter.md): Call the native iOS and Android SDKs from Flutter through a platform channel. There is no Flutter SDK.
+- [Integration checklist](https://deeplinknow.com/docs/integration-checklist.md): Everything to check before shipping: domains, entitlements, intent filters, testing.
+- [API authentication and keys](https://deeplinknow.com/docs/api/authentication)
+- [Deep links API](https://deeplinknow.com/docs/api/deeplinks)
+- [Campaigns API](https://deeplinknow.com/docs/api/campaigns)
+- [Analytics API](https://deeplinknow.com/docs/api/analytics)
+
+## Pricing and comparisons
+
+- [Pricing](https://deeplinknow.com/pricing.md): every plan and limit, from the same numbers the product enforces.
+- [Compared with Branch, Airbridge and AppsFlyer](https://deeplinknow.com/compare.md): sourced and dated.
+- [DeepLinkNow vs Branch](https://deeplinknow.com/compare/branch.md): Branch dropped its free tier. Custom domains start at $199/mo.
+- [DeepLinkNow vs Airbridge](https://deeplinknow.com/compare/airbridge.md): An MMP from $40/mo. Your deferred link waits on the ATT prompt.
+- [DeepLinkNow vs AppsFlyer](https://deeplinknow.com/compare/appsflyer.md): No deferred deep links on the free plan. Paid tiers need a sales call.
+
+## Free tools
+
+- [AASA validator](https://deeplinknow.com/tools/aasa-validator): Universal Links: is apple-app-site-association right, and does Apple's CDN have it?
+- [assetlinks.json validator](https://deeplinknow.com/tools/assetlinks-validator): Android App Links: will verification pass, and what does Google say?
+- [Ad-block list check](https://deeplinknow.com/tools/adblock-check): Is the domain, or what its CNAME points to, on a block list?
+
+## Guides
+
+- [What is deep linking?](https://deeplinknow.com/deep-linking): Universal Links, App Links and URI schemes.
+- [How deferred deep linking works](https://deeplinknow.com/deferred-deep-linking): The iOS clipboard handoff, the Android Install Referrer and scored fingerprint matches.
+- [Firebase Dynamic Links alternative](https://deeplinknow.com/firebase-dynamic-links-alternative): Firebase Dynamic Links shut down on 2025-08-25. How to replace it with DeepLinkNow.
+- [FAQ](https://deeplinknow.com/faq): Product, technical, privacy and billing questions.
+
+## Optional
+
+- [Everything in one file](https://deeplinknow.com/llms-full.txt): the docs, pricing and comparisons above, concatenated.
+- [What Apple's ATT changed for MMPs, and why deep linking never needed it](https://deeplinknow.com/blog/apple-att-framework-mmps.md)
+- [Do you need AI for deep linking?](https://deeplinknow.com/blog/do-you-need-AI-for-deep-linking.md)
+- [Why DeepLinkNow costs less than Branch, AppsFlyer and Airbridge](https://deeplinknow.com/blog/why-is-deeplinknow-so-cheap.md)
+- [How deep linking vendors lock you in, and how to avoid it](https://deeplinknow.com/blog/vendor-lock-in.md)
+- [Why I Built DeepLinkNow](https://deeplinknow.com/blog/why-I-built-this.md)
+- [How deferred deep linking works, and why it got harder](https://deeplinknow.com/blog/deferred-deep-linking-2025.md)
+- [Deferred deep linking in React Native and Expo with @deeplinknow/react-native](https://deeplinknow.com/blog/deferred-deep-linking-react-native-expo.md)
