@@ -9,7 +9,7 @@ import { USER_AGENT } from "./version.js";
 
 export const DOCS_ORIGIN = "https://deeplinknow.com";
 /** When the files in content/ were last regenerated from web/ (the same output as the live .md twins and llms files). */
-export const SNAPSHOT_DATE = "2026-10-24";
+export const SNAPSHOT_DATE = "2026-10-25";
 
 export const DOC_PAGES = {
   android: "/docs/android.md",

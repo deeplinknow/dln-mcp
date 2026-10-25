@@ -32,8 +32,8 @@ These files are served from your saved settings and cached for up to 5 minutes.
 ## SDK installation
 
 - [ ] **React Native / Expo**: `npx expo install @deeplinknow/react-native` (development build, not Expo Go) or `npm install @deeplinknow/react-native` + `pod install`
-- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.3'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
-- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.3.0")` (the library declares `INTERNET` itself)
+- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.4'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
+- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.4.0")` (the library declares `INTERNET` itself)
 - [ ] **Flutter**: `flutter pub add deeplinknow` (iOS 13+, Android `minSdk` 24; rebuild the app after adding it)
 - [ ] iOS: Associated Domains `applinks:myapp.deeplinknow.com` (and your custom domain)
 - [ ] Android: `autoVerify` https intent filter for `myapp.deeplinknow.com` (and your custom domain)
@@ -48,8 +48,9 @@ These files are served from your saved settings and cached for up to 5 minutes.
 
 ## Deferred deep linking
 
-- [ ] Call `checkDeferredDeepLink()` once on launch, after initialization
-- [ ] Route to `link.path` with `link.queryParams` when it returns a link
+- [ ] Register `onLink` at launch (Flutter: `DeepLinkNow.links` and `listen()`), or call `checkDeferredDeepLink()` once on launch, after initialization
+- [ ] Route to `link.path` with `link.queryParams` when a link arrives
+- [ ] If linked screens need a signed-in user, register with `hold` and call `releasePendingLink()` after sign-in
 - [ ] Decide your threshold for fingerprint results. Every result carries `confidenceScore` (0–100) and `matchQuality` (`HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49). The optional `minConfidence` filter is off by default.
 - [ ] Consider confirming `MEDIUM` or `LOW` fingerprint matches with the user before routing
 - [ ] iOS: decide whether to keep the pasteboard step (`useClipboard`, default `true`), which can show the iOS 16+ paste prompt
@@ -57,7 +58,9 @@ These files are served from your saved settings and cached for up to 5 minutes.
 
 ## Links that open the installed app
 
-- [ ] Pass incoming Universal Links / App Links to `parseDeepLink(url)`
+- [ ] With `onLink`: pass incoming URLs to `DeepLinkNow.handle(url)` (iOS) or intents to `DLN.handleIntent(intent)` in `onCreate` and `onNewIntent` (Android). React Native and Flutter read them for you. Without `onLink`, pass them to `parseDeepLink(url)`
+- [ ] Custom URL schemes: bare React Native apps list them in `schemes`; the other SDKs read them from Info.plist, the Android manifest or the Expo config
+- [ ] Imported Firebase short links: turn on `resolve` so each open carries the original deep link in `targetUrl`
 - [ ] Route deferred and direct links through the same function
 
 ```typescript

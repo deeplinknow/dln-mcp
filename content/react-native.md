@@ -9,6 +9,8 @@ When a user taps one of your links before installing your app, `checkDeferredDee
 - **iOS**: 1. the link the landing page copied to the pasteboard (exact), then 2. fingerprint matching (best effort).
 - **Android**: 1. the Play Install Referrer (exact), then 2. fingerprint matching (best effort).
 
+From 1.4.0, `onLink` (or the `useDeepLink()` hook) gives you the deferred link and every link that opens the installed app through one handler, so you write your routing once.
+
 It is not an analytics or attribution SDK. It never reads advertising identifiers and never triggers the App Tracking Transparency prompt.
 
 ## Requirements
@@ -46,7 +48,7 @@ npm install @deeplinknow/react-native
 cd ios && pod install
 ```
 
-If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.3.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
+If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.4.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
 
 Autolinking picks the right native module (TurboModule on the new architecture, bridge module on the old one). Add the Associated Domains entitlement (`applinks:myapp.deeplinknow.com`) on iOS and an `autoVerify` https intent filter for your link domains on Android. See the [iOS](/docs/ios) and [Android](/docs/android) docs for details and the dashboard settings that serve the `.well-known` files.
 
@@ -69,7 +71,46 @@ Config options: `enableLogs` (default `false`), `baseUrl` (default `https://deep
 
 For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
 
+### Handle every link with one handler
+
+From 1.4.0, `onLink` hands your app the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (a Universal Link, an App Link or your URL scheme). The SDK reads `Linking.getInitialURL()` and `url` events itself, so you don't write any `Linking` code. This is the recommended setup for new integrations without Expo Router:
+
+```typescript
+import DeepLinkNow from "@deeplinknow/react-native";
+
+const unsubscribe = DeepLinkNow.onLink(
+  (link) => {
+    // link.type    "deferred" (first launch after install) or "direct"
+    // link.source  "referrer" | "clipboard" | "fingerprint" | "universalLink" | "appLink" | "scheme"
+    navigate(link.path, link.queryParams);
+  },
+  { apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+);
+```
+
+Registering the handler starts the first-launch check, the same single check as `checkDeferredDeepLink()`, so calling both doesn't run it twice. With `apiKey` set, `onLink` initializes the SDK first. A link that arrives before you register is handed to the first handler once, and the same URL within 3 seconds counts as one open. A direct open has `confidenceScore` 100 and `matchQuality` `"HIGH"`.
+
+In a React component, `useDeepLink()` gives you the same thing as state: `{ link, pendingLink, pendingLinks, isLoading, release, clear }`. It takes the same options as `onLink`, plus `enabled`.
+
+Options:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `apiKey`, `config` | unset | Initialize first when the SDK isn't initialized yet |
+| `minConfidence`, `useClipboard` | off, `true` | Passed to the first-launch check (see [Get the deferred deep link](#get-the-deferred-deep-link)) |
+| `hold` | `false` | Keep links in `DeepLinkNow.pendingLinks` instead of calling the handler |
+| `schemes` | the Expo config's `scheme` | Your custom URL schemes, for example `["myapp"]` |
+| `resolve` | `false` | Look up each Universal Link or App Link on the server before delivering it |
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. With `hold: true` the SDK keeps the latest deferred link and the latest direct one in `DeepLinkNow.pendingLinks` (deferred first; `DeepLinkNow.pendingLink` is the first of them). When sign-in finishes, `DeepLinkNow.releasePendingLink()` delivers them and ends the hold, so later links go straight to your handler. `DeepLinkNow.clearPendingLink()` drops them and keeps holding. With the hook, pass `hold: !isSignedIn` and the link is delivered once when the user signs in (see [Open the link after sign-in](#open-the-link-after-sign-in)).
+
+**Custom URL schemes.** `myapp://products/1?x=1` arrives with `path` `/products/1` and `source` `"scheme"`. Expo apps get the `scheme` from the Expo config by default. Bare React Native apps must pass the list themselves, for example `schemes: ["myapp"]`, or scheme links aren't delivered.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve: true`, the SDK calls `GET /api/v1/sdk/resolve` for each Universal Link or App Link open and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata` before delivering it, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, bounded by `timeoutMs`, so it's off by default. If the lookup fails, times out or finds nothing, you get the link unresolved. `await DeepLinkNow.resolveLink(url)` does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
 ### Get the deferred deep link
+
+`checkDeferredDeepLink()` keeps working, and it's what `onLink` runs on first launch. Call it yourself if you'd rather not use a handler:
 
 ```typescript
 const link = await DeepLinkNow.checkDeferredDeepLink();
@@ -116,6 +157,8 @@ Using Expo Router? See [Expo Router](#expo-router).
 | `matchQuality` | `"HIGH" \| "MEDIUM" \| "LOW"` | `HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49 |
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | optional | From the server |
 | `matchDetails` | optional | Score breakdown (fingerprint results) |
+
+The `DLNLink` that `onLink` delivers has the same fields plus `type` (`"deferred"` or `"direct"`), and its `source` can also be `"universalLink"`, `"appLink"` or `"scheme"`.
 
 ## Expo Router
 
@@ -177,6 +220,7 @@ The helper never throws. If something fails (offline, a wrong API key), the app 
 | `useClipboard` | `true` | iOS: check the link the landing page copied first |
 | `timeoutMs` | `3000` | The longest the first launch waits for the link, in milliseconds. `0` never waits |
 | `mapUniversalLinks` | `true` | Rewrite links on your DeepLinkNow domains to their in-app path |
+| `routeDeferredLink` | `true` | Open the app on the deferred link at launch. Set `false` to start on the normal route and deliver the link through the hook instead (1.4.0, see [Open the link after sign-in](#open-the-link-after-sign-in)) |
 | `mapLink` | the link's `fullPath` | `(link, source) => string \| null`. Use it when your screen paths differ from your link paths. `source` is `"deferred"` or `"universal"`. Return `null` to keep the incoming URL |
 
 For example, if your links look like `/p/123` but the screen is `app/products/[id].tsx`:
@@ -194,29 +238,43 @@ If you already have a `redirectSystemPath` with your own rewrites, call `redirec
 
 ### Open the link after sign-in
 
-If a deep-linked screen needs a signed-in user, set `timeoutMs: 0` in `+native-intent.tsx` so the app starts immediately and every deferred link comes through the hook, then navigate once the user has signed in:
+If a deep-linked screen needs a signed-in user, hold the link until sign-in finishes, then open it once. From 1.4.0, set `routeDeferredLink: false` in `+native-intent.tsx`. The helper still starts the check at launch, so the link is found inside its 1-hour claim window, but the app starts on its normal route:
+
+```tsx
+// app/+native-intent.tsx
+import { createRedirectSystemPath } from "@deeplinknow/react-native/expo-router";
+
+export const redirectSystemPath = createRedirectSystemPath({
+  apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  routeDeferredLink: false,
+});
+```
+
+Then hold the link in your root layout with `useDeepLink()`:
 
 ```tsx
 // app/_layout.tsx
-import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { useDeepLink } from "@deeplinknow/react-native";
 import { Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
 
 export default function RootLayout() {
-  const { link, clear } = useDeferredDeepLink();
   const { isSignedIn } = useAuth(); // your auth
   const router = useRouter();
+  const { link, pendingLink } = useDeepLink({ hold: !isSignedIn });
 
   useEffect(() => {
-    if (link && isSignedIn) {
-      clear(); // so it opens once
-      router.push(link.fullPath);
-    }
-  }, [link, isSignedIn]);
+    if (link) router.push(link.fullPath); // a new object for every link, delivered once
+  }, [link]);
 
+  // On the sign-in screen, `pendingLink` can say "Sign in to open your invite".
   return <Stack />;
 }
 ```
+
+While `hold` is true, a new link waits in `pendingLink`. When the user signs in it moves to `link`, once. `release()` delivers it early and ends the hold, and `clear()` drops it while still holding (on sign-out, or when the user declines the invite). Expo Router opens Universal Links, App Links and your scheme links itself through `+native-intent`, so `useDeepLink()` doesn't deliver those a second time; protect those routes with your layout's auth redirect as usual. The held link lives in memory only, so if the app is killed before sign-in it's gone.
+
+`useDeferredDeepLink()` also takes `hold` and an `onLink` callback from 1.4.0, and the 1.3 pattern (`timeoutMs: 0` in the helper, then `if (link && isSignedIn) { clear(); router.push(link.fullPath); }` in an effect) still works.
 
 ### Without Expo Router
 
@@ -251,6 +309,8 @@ It returns `{ link, isLoading, clear }`. `link` is `null` until a link is found,
 - **You choose the threshold.** `minConfidence` is off by default. Use `matchQuality` or `confidenceScore` to decide what to route automatically and what to confirm with the user.
 
 ## Handling links that open the app
+
+With `onLink` or `useDeepLink()` you don't need this: the SDK reads the URLs itself (see [Handle every link with one handler](#handle-every-link-with-one-handler)). Without them, read the URL with `Linking` and parse it:
 
 ```typescript
 import { Linking } from "react-native";
@@ -290,6 +350,7 @@ The native SDKs send only what matching needs (platform, OS version, device clas
 | `POST /api/v1/sdk/init` | public | `initialize` (exactly one call per `initialize`) |
 | `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` on Android |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `onLink` with `resolve: true`, `resolveLink` |
 
 ## Support
 

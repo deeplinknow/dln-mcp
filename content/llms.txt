@@ -25,7 +25,6 @@
 - [MCP server for coding agents](https://deeplinknow.com/docs/mcp.md): @deeplinknow/mcp: setup guides, domain checks, match explanations and migration plans for Claude Code, Cursor, Claude Desktop, VS Code and Windsurf.
 - [Migrating from Firebase Dynamic Links](https://deeplinknow.com/docs/firebase-migration.md): Keep FDL-style long links by changing only the host (the app reads queryParams.link), or switch to paths. Code for React Native, iOS and Android.
 - [Integration checklist](https://deeplinknow.com/docs/integration-checklist.md): Everything to check before shipping: domains, entitlements, intent filters, testing.
-- [Smart banner](https://deeplinknow.com/docs/smart-banner.md): One script tag that shows phone visitors of your website a bar to open the same page in your app. No cookies, no tracking requests.
 - [API authentication and keys](https://deeplinknow.com/docs/api/authentication)
 - [Deep links API](https://deeplinknow.com/docs/api/deeplinks)
 - [Campaigns API](https://deeplinknow.com/docs/api/campaigns)

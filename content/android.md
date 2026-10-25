@@ -9,7 +9,7 @@ On Android the deferred link comes from two sources, tried in this order:
 1. **Play Install Referrer (exact).** The landing page adds a click ID to the Play Store link. After install, the SDK reads it from the Install Referrer API and looks up the exact click.
 2. **Fingerprint (best effort).** If there is no usable referrer, the SDK asks the server for scored candidates from clicks on your link pages in the last hour.
 
-You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does not read the clipboard by default.
+You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does not read the clipboard by default. From 1.4.0, `DLN.onLink` gives you the deferred link and every link that opens the installed app through one handler, so you write your routing once.
 
 ## Requirements
 
@@ -22,14 +22,14 @@ You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.3.0")
+    implementation("com.deeplinknow:dln-android:1.4.0")
 }
 ```
 
 ```gradle
 // build.gradle
 dependencies {
-    implementation 'com.deeplinknow:dln-android:1.3.0'
+    implementation 'com.deeplinknow:dln-android:1.4.0'
 }
 ```
 
@@ -79,9 +79,63 @@ Optional parameters: `baseUrl` (default `https://deeplinknow.com`), `timeoutMs` 
 
 For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
 
+### Handle every link with one handler
+
+From 1.4.0, `DLN.onLink` hands your app the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (direct). This is the recommended setup for new integrations:
+
+```kotlin
+// Application.onCreate, after DLN.init
+DLN.onLink { link ->
+    // link.type    DEFERRED (first launch after install) or DIRECT
+    // link.source  REFERRER / FINGERPRINT for deferred, APP_LINK / SCHEME for direct
+    router.open(link.path, link.queryParams)
+}
+
+// The activity with your App Link intent filter
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    DLN.handleIntent(intent)
+}
+
+override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    DLN.handleIntent(intent)
+}
+```
+
+Registering the handler runs the first-launch check for you, with the same Install Referrer and fingerprint steps and the same once-per-install rule as `checkDeferredDeepLink()`. A link that arrives before a handler exists is passed to it when it registers. The handler runs on the main thread.
+
+`handleIntent` returns `true` for a link on your link domains or your custom scheme, and `false` for anything else. The same intent is delivered once, even when both `onCreate` and `onNewIntent` see it or the user reopens the app from Recents. A direct open has `confidenceScore` 100 and `matchQuality` `HIGH`. `onLink` returns a `DLNLinkSubscription`; call `remove()` on it if you register from an activity.
+
+Options (`DLNLinkOptions`, passed as `DLN.onLink(DLNLinkOptions(...)) { ... }`):
+
+| Option | Default | Meaning |
+|---|---|---|
+| `minConfidence`, `force` | `null`, `false` | Passed to the first-launch check (see [Get the deferred deep link](#get-the-deferred-deep-link)) |
+| `hold` | `false` | Keep links in `DLN.pendingLinks` instead of calling the handler |
+| `schemes` | your manifest's schemes | The custom URL schemes `handleIntent` accepts, for example `setOf("myapp")` |
+| `resolve` | `false` | Look up each App Link on the server before delivering it |
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. Register with `hold = true` and the SDK keeps the latest deferred link and the latest direct one in `DLN.pendingLinks` (deferred first; `DLN.pendingLink` is the first of them). When sign-in finishes, `DLN.releasePendingLink()` delivers them to your handler and ends the hold, so later links go straight through. `DLN.clearPendingLink()` drops them and keeps holding, for example when the user signs out.
+
+```kotlin
+DLN.onLink(DLNLinkOptions(hold = true)) { link ->
+    router.open(link.path, link.queryParams)
+}
+
+// After sign-in
+DLN.releasePendingLink()
+```
+
+**Custom URL schemes.** `myapp://products/123?x=1` arrives with `path` `/products/123` and `source` `SCHEME`. By default the SDK accepts the schemes your manifest declares in a VIEW intent filter. Pass `DLNLinkOptions(schemes = setOf("myapp"))` to list them yourself.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve = true`, the SDK calls `GET /api/v1/sdk/resolve` for each App Link open and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata` before delivering it, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, so it's off by default. If the lookup fails, times out or finds nothing, you get the link unresolved. `DLN.resolveLink(url)` (a suspend function) does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
+From Java: `DLN.onLink(link -> route(link))`, `DLN.onLink(new DLNLinkOptions(null, false, true), handler)` and `DLN.resolveLink(url, link -> { ... })`.
+
 ### Get the deferred deep link
 
-Call `checkDeferredDeepLink()` once on launch, after `DLN.init`. It never throws: it returns a Kotlin `Result`.
+`checkDeferredDeepLink()` keeps working, and it's what `onLink` runs on first launch. If you'd rather call it yourself, call it once on launch, after `DLN.init`. It never throws: it returns a Kotlin `Result`.
 
 ```kotlin
 lifecycleScope.launch {
@@ -140,6 +194,8 @@ Parameters:
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | From the server |
 | `matchDetails` | Score breakdown (fingerprint results) |
 
+The `DLNLink` that `onLink` delivers has the same fields plus `type` (`DEFERRED` or `DIRECT`), and its `source` can also be `APP_LINK` or `SCHEME`.
+
 ## How fingerprint matching works
 
 Fingerprint matching is the backup for installs without a usable referrer (for example, an install that didn't come through your link's Play Store button).
@@ -154,15 +210,15 @@ Fingerprint matching is the backup for installs without a usable referrer (for e
 
 ## Handling links that open the app
 
-Pass incoming URLs to `DLN.parseDeepLink(url)` in both `onCreate` and `onNewIntent`. It returns `ParsedDeepLink(path, queryParams, fullPath, url)`, or `null` for URLs that are not on your link domains:
+With `onLink`, call `DLN.handleIntent(intent)` in `onCreate` and `onNewIntent` (see [Handle every link with one handler](#handle-every-link-with-one-handler)). Without a handler, pass incoming URLs to `DLN.parseDeepLink(url)` in both `onCreate` and `onNewIntent`. It returns `ParsedDeepLink(path, queryParams, fullPath, url)`, or `null` for URLs that are not on your link domains:
 
 ```kotlin
 override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    handleIntent(intent)
+    routeIntent(intent)
 }
 
-private fun handleIntent(intent: Intent) {
+private fun routeIntent(intent: Intent) {
     val url = intent.data?.toString() ?: return
     DLN.parseDeepLink(url)?.let { link ->
         router.open(link.path, link.queryParams)
@@ -170,7 +226,7 @@ private fun handleIntent(intent: Intent) {
 }
 ```
 
-Alternatively register a callback with `DLN.setDeepLinkCallback(...)` and call `DLN.handleDeepLink(url)`.
+Alternatively register a callback with `DLN.setDeepLinkCallback(...)` and call `DLN.handleDeepLink(url)`. That callback is separate from `onLink`: `handleDeepLink` doesn't reach the `onLink` handler.
 
 Deferred results and direct opens use the same parsing rules, so you can route both the same way. The host rule accepts exactly `<alias>.deeplinknow.com` and your verified custom domain, case-insensitively. Other `deeplinknow.com` subdomains and lookalike hosts are rejected.
 
@@ -199,8 +255,9 @@ The SDK sends only what matching needs: a synthesized user agent, platform, OS v
 | `POST /api/v1/sdk/init` | public | `DLN.init` |
 | `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` (referrer step) |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `onLink` with `resolve = true`, `resolveLink` |
 
-These calls are exempt from per-minute rate limits; `init` counts toward monthly active users.
+`init`, `referrer-lookup` and `match` are exempt from per-minute rate limits, and `init` counts toward monthly active users. `resolve` counts toward your key's per-minute limit (600 a minute on the Developer and Startup plans) but not toward the monthly API quota.
 
 ## Support
 

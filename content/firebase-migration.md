@@ -126,7 +126,7 @@ If your Dynamic Links used your own domain (such as `links.yourapp.com`) rather 
 
 Each short link becomes a link on the same path, so `https://links.yourapp.com/abc123` is stored as `abc123`. Its target URL is the original Firebase deep link, its link name becomes the title, and the social title, description and image carry over. The other Firebase parameters (`apn`, `ibi`, `utm_source` and so on) are kept in the link's metadata under `fdl`.
 
-When someone taps an imported link and installs your app, the deferred result carries the original deep link in `targetUrl`. When the app is already installed, the link opens it directly without reaching DeepLinkNow, so look the path up yourself:
+When someone taps an imported link and installs your app, the deferred result carries the original deep link in `targetUrl`. When the app is already installed, the link opens it directly without reaching DeepLinkNow. From SDK 1.4.0, register `onLink` with `resolve: true` and the SDK looks each open up for you, so `link.targetUrl` holds the original deep link (see the [iOS](/docs/ios#handle-every-link-with-one-handler), [Android](/docs/android#handle-every-link-with-one-handler), [React Native](/docs/react-native#handle-every-link-with-one-handler) and [Flutter](/docs/flutter#every-open-in-one-stream) docs). Otherwise, look the path up yourself:
 
 ```typescript
 const res = await fetch(

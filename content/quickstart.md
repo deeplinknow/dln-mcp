@@ -1,6 +1,6 @@
 # Quick start guide
 
-Get deferred deep linking working in a few minutes: one call to initialize, one call to get the deferred link.
+Get deferred deep linking working in a few minutes: one call to initialize, and one handler that receives the deferred link and every link that opens the installed app.
 
 ## Prerequisites
 
@@ -33,14 +33,17 @@ With Expo, add the config plugin with your link domains (`["@deeplinknow/react-n
 ```typescript
 import DeepLinkNow from "@deeplinknow/react-native";
 
-await DeepLinkNow.initialize("dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-
-const link = await DeepLinkNow.checkDeferredDeepLink();
-if (link) {
-  // link.source: "clipboard" (iOS), "referrer" (Android) or "fingerprint"
-  router.push({ pathname: link.path, params: link.queryParams });
-}
+DeepLinkNow.onLink(
+  (link) => {
+    // link.type: "deferred" (first launch after install) or "direct"
+    // link.source: "clipboard" (iOS), "referrer" (Android), "fingerprint", or how a direct open arrived
+    router.push({ pathname: link.path, params: link.queryParams });
+  },
+  { apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+);
 ```
+
+`onLink` initializes the SDK, runs the first-launch check and reads `Linking` itself, so there's no other code to write. In bare React Native, pass `schemes: ["myapp"]` if you also want your custom-scheme links. `checkDeferredDeepLink()` still works if you only want the deferred link.
 
 Using Expo Router? Resolve the link in `app/+native-intent.tsx` with `@deeplinknow/react-native/expo-router` instead, so the app opens straight on the right screen. See [Expo Router](/docs/react-native#expo-router).
 
@@ -49,7 +52,7 @@ Next: [Full React Native documentation](/docs/react-native)
 ## iOS (Swift)
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.3'
+pod 'DeepLinkNow', '~> 1.4'
 ```
 
 Or add `https://github.com/deeplinknow/dln-ios` with Swift Package Manager. Add `applinks:<alias>.deeplinknow.com` under **Signing & Capabilities → Associated Domains**. Then:
@@ -57,21 +60,20 @@ Or add `https://github.com/deeplinknow/dln-ios` with Swift Package Manager. Add 
 ```swift
 import DeepLinkNow
 
-await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"))
+Task { await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")) }
 
-if let link = await DeepLinkNow.checkDeferredDeepLink() {
-    // Pasteboard first (exact), then fingerprint (scored)
+// Runs the first-launch check (the same as checkDeferredDeepLink()) and gets every later open
+DeepLinkNow.onLink { link in
+    // Deferred: pasteboard first (exact), then fingerprint (scored)
     router.open(path: link.path, query: link.queryParams)
 }
 ```
 
-Handle Universal Links when the app is already installed:
+Hand Universal Links that open the installed app to the SDK:
 
 ```swift
 .onOpenURL { url in
-    if let link = DeepLinkNow.parseLink(url) {
-        router.open(path: link.path, query: link.queryParams)
-    }
+    DeepLinkNow.handle(url)
 }
 ```
 
@@ -81,7 +83,7 @@ Next: [Full iOS documentation](/docs/ios)
 
 ```kotlin
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.3.0")
+    implementation("com.deeplinknow:dln-android:1.4.0")
 }
 ```
 
@@ -91,14 +93,16 @@ Add an `autoVerify` https intent filter for `<alias>.deeplinknow.com` to your li
 // Application.onCreate
 DLN.init(context = this, apiKey = "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 
-// First activity
-lifecycleScope.launch {
-    DLN.checkDeferredDeepLink().getOrNull()?.let { link ->
-        // Install Referrer first (exact), then fingerprint (scored)
-        router.open(link.path, link.queryParams)
-    }
+DLN.onLink { link ->
+    // Deferred: Install Referrer first (exact), then fingerprint (scored)
+    router.open(link.path, link.queryParams)
 }
+
+// The activity with your App Link intent filter, in onCreate and onNewIntent
+DLN.handleIntent(intent)
 ```
+
+`DLN.checkDeferredDeepLink()` still works if you only want the deferred link.
 
 Next: [Full Android documentation](/docs/android)
 
@@ -113,14 +117,15 @@ The plugin wraps the native iOS and Android SDKs, which Swift Package Manager or
 ```dart
 import 'package:deeplinknow/deeplinknow.dart';
 
-await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
-
-final link = await DeepLinkNow.checkDeferredDeepLink();
-if (link != null) {
-  // link.source: clipboard (iOS), referrer (Android) or fingerprint
+DeepLinkNow.links.listen((link) {
+  // link.type: deferred or direct
   router.go(link.fullPath);
-}
+});
+DeepLinkNow.listen();
+await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
 ```
+
+Set `FlutterDeepLinkingEnabled` to `NO` in `Info.plist` and `flutter_deeplinking_enabled` to `false` in `AndroidManifest.xml` so Flutter doesn't route the same link too (see the [Flutter docs](/docs/flutter#every-open-in-one-stream)). `checkDeferredDeepLink()` still works if you only want the deferred link.
 
 Next: [Full Flutter documentation](/docs/flutter)
 
@@ -132,7 +137,7 @@ Next: [Full Flutter documentation](/docs/flutter)
 | Step 2 (best effort) | Fingerprint match | Fingerprint match |
 | Result | `DeferredDeepLink` with `source`, `confidenceScore`, `matchQuality` | same |
 
-Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `fullPath`, `url`, `source`, `confidenceScore` (0–100) and `matchQuality` (`HIGH` / `MEDIUM` / `LOW`). Exact sources report `100` / `HIGH`.
+Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `fullPath`, `url`, `source`, `confidenceScore` (0–100) and `matchQuality` (`HIGH` / `MEDIUM` / `LOW`). Exact sources report `100` / `HIGH`. The `DLNLink` that `onLink` delivers adds `type` (deferred or direct), and links that open the installed app report `100` / `HIGH` too.
 
 ### About fingerprint matching
 
@@ -152,7 +157,7 @@ Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `ful
 
 ### No deferred link on first launch
 
-- Make sure you call `checkDeferredDeepLink()` after `initialize`, and that the install happened within 1 hour of the click for fingerprint matching.
+- Make sure you register `onLink` (or call `checkDeferredDeepLink()`) at launch, and that the install happened within 1 hour of the click for fingerprint matching.
 - It returns a link only once per install. Call `resetDeferredDeepLink()` (or pass `force: true`) to test again.
 - Turn on `enableLogs` to see each step's outcome.
 - On iOS, tapping **Don't Allow** on the paste prompt skips the pasteboard step; fingerprint matching still runs.

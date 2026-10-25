@@ -19,7 +19,7 @@ Source: https://deeplinknow.com/docs/quickstart
 
 # Quick start guide
 
-Get deferred deep linking working in a few minutes: one call to initialize, one call to get the deferred link.
+Get deferred deep linking working in a few minutes: one call to initialize, and one handler that receives the deferred link and every link that opens the installed app.
 
 ## Prerequisites
 
@@ -52,14 +52,17 @@ With Expo, add the config plugin with your link domains (`["@deeplinknow/react-n
 ```typescript
 import DeepLinkNow from "@deeplinknow/react-native";
 
-await DeepLinkNow.initialize("dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-
-const link = await DeepLinkNow.checkDeferredDeepLink();
-if (link) {
-  // link.source: "clipboard" (iOS), "referrer" (Android) or "fingerprint"
-  router.push({ pathname: link.path, params: link.queryParams });
-}
+DeepLinkNow.onLink(
+  (link) => {
+    // link.type: "deferred" (first launch after install) or "direct"
+    // link.source: "clipboard" (iOS), "referrer" (Android), "fingerprint", or how a direct open arrived
+    router.push({ pathname: link.path, params: link.queryParams });
+  },
+  { apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+);
 ```
+
+`onLink` initializes the SDK, runs the first-launch check and reads `Linking` itself, so there's no other code to write. In bare React Native, pass `schemes: ["myapp"]` if you also want your custom-scheme links. `checkDeferredDeepLink()` still works if you only want the deferred link.
 
 Using Expo Router? Resolve the link in `app/+native-intent.tsx` with `@deeplinknow/react-native/expo-router` instead, so the app opens straight on the right screen. See [Expo Router](/docs/react-native#expo-router).
 
@@ -68,7 +71,7 @@ Next: [Full React Native documentation](/docs/react-native)
 ## iOS (Swift)
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.3'
+pod 'DeepLinkNow', '~> 1.4'
 ```
 
 Or add `https://github.com/deeplinknow/dln-ios` with Swift Package Manager. Add `applinks:<alias>.deeplinknow.com` under **Signing & Capabilities → Associated Domains**. Then:
@@ -76,21 +79,20 @@ Or add `https://github.com/deeplinknow/dln-ios` with Swift Package Manager. Add 
 ```swift
 import DeepLinkNow
 
-await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"))
+Task { await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")) }
 
-if let link = await DeepLinkNow.checkDeferredDeepLink() {
-    // Pasteboard first (exact), then fingerprint (scored)
+// Runs the first-launch check (the same as checkDeferredDeepLink()) and gets every later open
+DeepLinkNow.onLink { link in
+    // Deferred: pasteboard first (exact), then fingerprint (scored)
     router.open(path: link.path, query: link.queryParams)
 }
 ```
 
-Handle Universal Links when the app is already installed:
+Hand Universal Links that open the installed app to the SDK:
 
 ```swift
 .onOpenURL { url in
-    if let link = DeepLinkNow.parseLink(url) {
-        router.open(path: link.path, query: link.queryParams)
-    }
+    DeepLinkNow.handle(url)
 }
 ```
 
@@ -100,7 +102,7 @@ Next: [Full iOS documentation](/docs/ios)
 
 ```kotlin
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.3.0")
+    implementation("com.deeplinknow:dln-android:1.4.0")
 }
 ```
 
@@ -110,14 +112,16 @@ Add an `autoVerify` https intent filter for `<alias>.deeplinknow.com` to your li
 // Application.onCreate
 DLN.init(context = this, apiKey = "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 
-// First activity
-lifecycleScope.launch {
-    DLN.checkDeferredDeepLink().getOrNull()?.let { link ->
-        // Install Referrer first (exact), then fingerprint (scored)
-        router.open(link.path, link.queryParams)
-    }
+DLN.onLink { link ->
+    // Deferred: Install Referrer first (exact), then fingerprint (scored)
+    router.open(link.path, link.queryParams)
 }
+
+// The activity with your App Link intent filter, in onCreate and onNewIntent
+DLN.handleIntent(intent)
 ```
+
+`DLN.checkDeferredDeepLink()` still works if you only want the deferred link.
 
 Next: [Full Android documentation](/docs/android)
 
@@ -132,14 +136,15 @@ The plugin wraps the native iOS and Android SDKs, which Swift Package Manager or
 ```dart
 import 'package:deeplinknow/deeplinknow.dart';
 
-await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
-
-final link = await DeepLinkNow.checkDeferredDeepLink();
-if (link != null) {
-  // link.source: clipboard (iOS), referrer (Android) or fingerprint
+DeepLinkNow.links.listen((link) {
+  // link.type: deferred or direct
   router.go(link.fullPath);
-}
+});
+DeepLinkNow.listen();
+await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
 ```
+
+Set `FlutterDeepLinkingEnabled` to `NO` in `Info.plist` and `flutter_deeplinking_enabled` to `false` in `AndroidManifest.xml` so Flutter doesn't route the same link too (see the [Flutter docs](/docs/flutter#every-open-in-one-stream)). `checkDeferredDeepLink()` still works if you only want the deferred link.
 
 Next: [Full Flutter documentation](/docs/flutter)
 
@@ -151,7 +156,7 @@ Next: [Full Flutter documentation](/docs/flutter)
 | Step 2 (best effort) | Fingerprint match | Fingerprint match |
 | Result | `DeferredDeepLink` with `source`, `confidenceScore`, `matchQuality` | same |
 
-Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `fullPath`, `url`, `source`, `confidenceScore` (0–100) and `matchQuality` (`HIGH` / `MEDIUM` / `LOW`). Exact sources report `100` / `HIGH`.
+Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `fullPath`, `url`, `source`, `confidenceScore` (0–100) and `matchQuality` (`HIGH` / `MEDIUM` / `LOW`). Exact sources report `100` / `HIGH`. The `DLNLink` that `onLink` delivers adds `type` (deferred or direct), and links that open the installed app report `100` / `HIGH` too.
 
 ### About fingerprint matching
 
@@ -171,7 +176,7 @@ Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `ful
 
 ### No deferred link on first launch
 
-- Make sure you call `checkDeferredDeepLink()` after `initialize`, and that the install happened within 1 hour of the click for fingerprint matching.
+- Make sure you register `onLink` (or call `checkDeferredDeepLink()`) at launch, and that the install happened within 1 hour of the click for fingerprint matching.
 - It returns a link only once per install. Call `resetDeferredDeepLink()` (or pass `force: true`) to test again.
 - Turn on `enableLogs` to see each step's outcome.
 - On iOS, tapping **Don't Allow** on the paste prompt skips the pasteboard step; fingerprint matching still runs.
@@ -195,7 +200,7 @@ On iOS the deferred link comes from two sources, tried in this order:
 1. **Pasteboard (exact).** The landing page copies the tapped link before sending the user to the App Store. On first launch the SDK reads it back.
 2. **Fingerprint (best effort).** If the pasteboard has no link of yours, the SDK asks the server for scored candidates from clicks on your link pages in the last hour.
 
-You get both with one call: `checkDeferredDeepLink()`.
+You get both with one call: `checkDeferredDeepLink()`. From 1.4.0, `onLink` gives you the deferred link and every link that opens the installed app through one handler, so you write your routing once.
 
 ## Requirements
 
@@ -211,22 +216,22 @@ You get both with one call: `checkDeferredDeepLink()`.
 In Xcode choose **File > Add Package Dependencies...** and enter `https://github.com/deeplinknow/dln-ios`, or add it to `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.3.0")
+.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.4.0")
 ```
 
 ### CocoaPods
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.3'
+pod 'DeepLinkNow', '~> 1.4'
 ```
 
-Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.3)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
+Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.4)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
 
 ### Universal Links (Associated Domains)
 
 1. In the dashboard, set your app's **Team ID / App ID prefix** and **Bundle ID**. DeepLinkNow serves `https://<alias>.deeplinknow.com/.well-known/apple-app-site-association` (and the same file for a verified custom domain) from those values. Changes are live within 5 minutes.
 2. In Xcode, open **Signing & Capabilities → Associated Domains** and add `applinks:<alias>.deeplinknow.com`, plus `applinks:<your-custom-domain>` if you have one.
-3. Pass incoming URLs to `parseLink` (see [Handling links that open the app](#handling-links-that-open-the-app)).
+3. Pass incoming URLs to `DeepLinkNow.handle(url)` (see [Handle every link with one handler](#handle-every-link-with-one-handler)).
 
 ## Getting started
 
@@ -265,9 +270,62 @@ do {
 
 For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
 
+### Handle every link with one handler
+
+From 1.4.0, `onLink` hands your app the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (direct). This is the recommended setup for new integrations:
+
+```swift
+// At launch
+Task { await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")) }
+DeepLinkNow.onLink { link in            // runs on the main actor
+    // link.type    .deferred (first launch after install) or .direct
+    // link.source  .clipboard / .fingerprint for deferred, .universalLink / .scheme for direct
+    router.open(path: link.path, query: link.queryParams)
+}
+
+// SwiftUI: hand every URL that opens the app to the SDK
+.onOpenURL { url in
+    if !DeepLinkNow.handle(url) { /* not one of your links: route it yourself */ }
+}
+.onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+    if let url = activity.webpageURL { DeepLinkNow.handle(url) }
+}
+
+// UIKit: scene(_:continue:) or application(_:continue:restorationHandler:)
+if let url = userActivity.webpageURL { DeepLinkNow.handle(url) }
+```
+
+Registering the handler runs the first-launch check for you, with the same pasteboard and fingerprint steps and the same once-per-install rule as `checkDeferredDeepLink()`. If you register before `initialize` has finished, the check waits for it. A link that arrives before you register is handed to the handler when you do, and the same URL handed in twice within 3 seconds is delivered once.
+
+`handle(_:)` returns `true` for a link on your link domains and for your own URL scheme, and `false` for anything else (`mailto:`, `tel:`, https links on other hosts), which you route yourself. A direct open has `confidenceScore` 100 and `matchQuality` `.high`.
+
+Options (`DLNLinkOptions`, passed as `DeepLinkNow.onLink(options: …) { … }`):
+
+| Option | Default | Meaning |
+|---|---|---|
+| `minConfidence`, `useClipboard`, `force` | `nil`, `true`, `false` | Passed to the first-launch check (see [Get the deferred deep link](#get-the-deferred-deep-link)) |
+| `hold` | `false` | Keep links in `DeepLinkNow.pendingLinks` instead of calling the handler |
+| `schemes` | your Info.plist schemes | The custom URL schemes `handle(_:)` accepts, for example `["myapp"]` |
+| `resolve` | `false` | Look up each Universal Link on the server before delivering it |
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. Register with `hold: true` and the SDK keeps the latest deferred link and the latest direct one in `DeepLinkNow.pendingLinks` (deferred first; `DeepLinkNow.pendingLink` is the first of them). You can read `pendingLink` to show "Sign in to open your invite". When sign-in finishes, `releasePendingLink()` delivers them to your handler and ends the hold, so later links go straight through. `clearPendingLink()` drops them and keeps holding, for example when the user signs out.
+
+```swift
+DeepLinkNow.onLink(options: DLNLinkOptions(hold: true)) { link in
+    router.open(path: link.path, query: link.queryParams)
+}
+
+// After sign-in
+DeepLinkNow.releasePendingLink()
+```
+
+**Custom URL schemes.** `myapp://products/123?x=1` arrives with `path` `/products/123` and `source` `.scheme`. By default the SDK accepts the schemes your Info.plist declares under `CFBundleURLTypes` → `CFBundleURLSchemes`. Pass `schemes: ["myapp"]` to list them yourself.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve: true`, the SDK calls `GET /api/v1/sdk/resolve` for each Universal Link open and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata` before delivering it, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, so it's off by default. If the lookup fails, times out or finds nothing, you get the link unresolved. `await DeepLinkNow.resolveLink(url)` does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
 ### Get the deferred deep link
 
-Call `checkDeferredDeepLink()` once on launch, after `initialize`:
+`checkDeferredDeepLink()` keeps working, and it's what `onLink` runs on first launch. If you'd rather call it yourself, call it once on launch, after `initialize`:
 
 ```swift
 if let link = await DeepLinkNow.checkDeferredDeepLink() {
@@ -294,7 +352,7 @@ do {
 
 How `checkDeferredDeepLink()` works:
 
-1. **Pasteboard**: if the pasteboard holds a link on one of your link domains (`<alias>.deeplinknow.com` or your verified custom domain), it is parsed locally and returned with `source = .clipboard`, `confidenceScore = 100`, `matchQuality = .high`. No server match call is made.
+1. **Pasteboard**: if the pasteboard holds a link on one of your link domains (`<alias>.deeplinknow.com` or your verified custom domain), it is parsed locally and returned with `source = .clipboard`, `confidenceScore = 100`, `matchQuality = .high`. No server match call is made. From 1.4.0, a copied link whose click has already been used (for example, one left on the pasteboard from an earlier install) isn't delivered, and the SDK moves on to fingerprinting.
 2. **Fingerprint**: otherwise the SDK calls `POST /api/v1/sdk/match` and returns the best candidate the server sent, with the server's `confidence_score` and `match_quality` unchanged (`source = .fingerprint`).
 
 It returns a link at most once per install. After a definitive answer (a link, or nothing found) later calls return `nil` without touching the pasteboard or the network. Errors don't count, so an offline first launch can still succeed on the next launch.
@@ -329,6 +387,8 @@ let link = await DeepLinkNow.checkDeferredDeepLink(
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | From the server (fingerprint results) |
 | `matchDetails` | Score breakdown (fingerprint results) |
 
+The `DLNLink` that `onLink` delivers has the same fields plus `type` (`.deferred` or `.direct`), and its `source` can also be `.universalLink` or `.scheme`.
+
 ## How fingerprint matching works
 
 Fingerprint matching is the backup for when the pasteboard is empty, the user denied the paste prompt, or you set `useClipboard: false`.
@@ -357,7 +417,7 @@ If you don't want the prompt, pass `useClipboard: false`, or show your own "Past
 
 ## Handling links that open the app
 
-When the app is already installed, a Universal Link opens it directly. Parse it with `parseLink`, which returns `nil` for URLs that are not on your link domains:
+When the app is already installed, a Universal Link opens it directly. With `onLink`, pass the URL to `DeepLinkNow.handle(url)` and your handler gets it (see [Handle every link with one handler](#handle-every-link-with-one-handler)). Without a handler, parse it with `parseLink`, which keeps working and returns `nil` for URLs that are not on your link domains:
 
 ```swift
 // SwiftUI
@@ -391,7 +451,7 @@ The building blocks behind `checkDeferredDeepLink()` stay available:
 | `parseDeepLink(_:)` | Older tuple form `(path, parameters)` of `parseLink(_:)` |
 | `isValidDomain(_:)` | The host rule: exactly `<alias>.deeplinknow.com` or a verified custom domain, case-insensitive |
 | `createDeepLink(path:customParameters:)` | Build an https link on your primary link domain that `parseLink` round-trips (`nil` before init) |
-| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.3.0"`) |
+| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.4.0"`) |
 
 If you call these yourself, check the pasteboard before fingerprinting:
 
@@ -416,8 +476,9 @@ The SDK sends only what matching needs: a synthesized user agent, platform, OS v
 |---|---|---|
 | `POST /api/v1/sdk/init` | public | `initialize`: validates the key and account, returns your link domains |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `onLink` with `resolve: true`, `resolveLink` |
 
-Both calls are exempt from per-minute rate limits; `init` counts toward monthly active users.
+`init` and `match` are exempt from per-minute rate limits, and `init` counts toward monthly active users. `resolve` counts toward your key's per-minute limit (600 a minute on the Developer and Startup plans) but not toward the monthly API quota.
 
 ## Support
 
@@ -438,7 +499,7 @@ On Android the deferred link comes from two sources, tried in this order:
 1. **Play Install Referrer (exact).** The landing page adds a click ID to the Play Store link. After install, the SDK reads it from the Install Referrer API and looks up the exact click.
 2. **Fingerprint (best effort).** If there is no usable referrer, the SDK asks the server for scored candidates from clicks on your link pages in the last hour.
 
-You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does not read the clipboard by default.
+You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does not read the clipboard by default. From 1.4.0, `DLN.onLink` gives you the deferred link and every link that opens the installed app through one handler, so you write your routing once.
 
 ## Requirements
 
@@ -451,14 +512,14 @@ You get both with one call: `DLN.checkDeferredDeepLink()`. The Android SDK does 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.deeplinknow:dln-android:1.3.0")
+    implementation("com.deeplinknow:dln-android:1.4.0")
 }
 ```
 
 ```gradle
 // build.gradle
 dependencies {
-    implementation 'com.deeplinknow:dln-android:1.3.0'
+    implementation 'com.deeplinknow:dln-android:1.4.0'
 }
 ```
 
@@ -508,9 +569,63 @@ Optional parameters: `baseUrl` (default `https://deeplinknow.com`), `timeoutMs` 
 
 For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
 
+### Handle every link with one handler
+
+From 1.4.0, `DLN.onLink` hands your app the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (direct). This is the recommended setup for new integrations:
+
+```kotlin
+// Application.onCreate, after DLN.init
+DLN.onLink { link ->
+    // link.type    DEFERRED (first launch after install) or DIRECT
+    // link.source  REFERRER / FINGERPRINT for deferred, APP_LINK / SCHEME for direct
+    router.open(link.path, link.queryParams)
+}
+
+// The activity with your App Link intent filter
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    DLN.handleIntent(intent)
+}
+
+override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    DLN.handleIntent(intent)
+}
+```
+
+Registering the handler runs the first-launch check for you, with the same Install Referrer and fingerprint steps and the same once-per-install rule as `checkDeferredDeepLink()`. A link that arrives before a handler exists is passed to it when it registers. The handler runs on the main thread.
+
+`handleIntent` returns `true` for a link on your link domains or your custom scheme, and `false` for anything else. The same intent is delivered once, even when both `onCreate` and `onNewIntent` see it or the user reopens the app from Recents. A direct open has `confidenceScore` 100 and `matchQuality` `HIGH`. `onLink` returns a `DLNLinkSubscription`; call `remove()` on it if you register from an activity.
+
+Options (`DLNLinkOptions`, passed as `DLN.onLink(DLNLinkOptions(...)) { ... }`):
+
+| Option | Default | Meaning |
+|---|---|---|
+| `minConfidence`, `force` | `null`, `false` | Passed to the first-launch check (see [Get the deferred deep link](#get-the-deferred-deep-link)) |
+| `hold` | `false` | Keep links in `DLN.pendingLinks` instead of calling the handler |
+| `schemes` | your manifest's schemes | The custom URL schemes `handleIntent` accepts, for example `setOf("myapp")` |
+| `resolve` | `false` | Look up each App Link on the server before delivering it |
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. Register with `hold = true` and the SDK keeps the latest deferred link and the latest direct one in `DLN.pendingLinks` (deferred first; `DLN.pendingLink` is the first of them). When sign-in finishes, `DLN.releasePendingLink()` delivers them to your handler and ends the hold, so later links go straight through. `DLN.clearPendingLink()` drops them and keeps holding, for example when the user signs out.
+
+```kotlin
+DLN.onLink(DLNLinkOptions(hold = true)) { link ->
+    router.open(link.path, link.queryParams)
+}
+
+// After sign-in
+DLN.releasePendingLink()
+```
+
+**Custom URL schemes.** `myapp://products/123?x=1` arrives with `path` `/products/123` and `source` `SCHEME`. By default the SDK accepts the schemes your manifest declares in a VIEW intent filter. Pass `DLNLinkOptions(schemes = setOf("myapp"))` to list them yourself.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve = true`, the SDK calls `GET /api/v1/sdk/resolve` for each App Link open and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata` before delivering it, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, so it's off by default. If the lookup fails, times out or finds nothing, you get the link unresolved. `DLN.resolveLink(url)` (a suspend function) does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
+From Java: `DLN.onLink(link -> route(link))`, `DLN.onLink(new DLNLinkOptions(null, false, true), handler)` and `DLN.resolveLink(url, link -> { ... })`.
+
 ### Get the deferred deep link
 
-Call `checkDeferredDeepLink()` once on launch, after `DLN.init`. It never throws: it returns a Kotlin `Result`.
+`checkDeferredDeepLink()` keeps working, and it's what `onLink` runs on first launch. If you'd rather call it yourself, call it once on launch, after `DLN.init`. It never throws: it returns a Kotlin `Result`.
 
 ```kotlin
 lifecycleScope.launch {
@@ -569,6 +684,8 @@ Parameters:
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | From the server |
 | `matchDetails` | Score breakdown (fingerprint results) |
 
+The `DLNLink` that `onLink` delivers has the same fields plus `type` (`DEFERRED` or `DIRECT`), and its `source` can also be `APP_LINK` or `SCHEME`.
+
 ## How fingerprint matching works
 
 Fingerprint matching is the backup for installs without a usable referrer (for example, an install that didn't come through your link's Play Store button).
@@ -583,15 +700,15 @@ Fingerprint matching is the backup for installs without a usable referrer (for e
 
 ## Handling links that open the app
 
-Pass incoming URLs to `DLN.parseDeepLink(url)` in both `onCreate` and `onNewIntent`. It returns `ParsedDeepLink(path, queryParams, fullPath, url)`, or `null` for URLs that are not on your link domains:
+With `onLink`, call `DLN.handleIntent(intent)` in `onCreate` and `onNewIntent` (see [Handle every link with one handler](#handle-every-link-with-one-handler)). Without a handler, pass incoming URLs to `DLN.parseDeepLink(url)` in both `onCreate` and `onNewIntent`. It returns `ParsedDeepLink(path, queryParams, fullPath, url)`, or `null` for URLs that are not on your link domains:
 
 ```kotlin
 override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    handleIntent(intent)
+    routeIntent(intent)
 }
 
-private fun handleIntent(intent: Intent) {
+private fun routeIntent(intent: Intent) {
     val url = intent.data?.toString() ?: return
     DLN.parseDeepLink(url)?.let { link ->
         router.open(link.path, link.queryParams)
@@ -599,7 +716,7 @@ private fun handleIntent(intent: Intent) {
 }
 ```
 
-Alternatively register a callback with `DLN.setDeepLinkCallback(...)` and call `DLN.handleDeepLink(url)`.
+Alternatively register a callback with `DLN.setDeepLinkCallback(...)` and call `DLN.handleDeepLink(url)`. That callback is separate from `onLink`: `handleDeepLink` doesn't reach the `onLink` handler.
 
 Deferred results and direct opens use the same parsing rules, so you can route both the same way. The host rule accepts exactly `<alias>.deeplinknow.com` and your verified custom domain, case-insensitively. Other `deeplinknow.com` subdomains and lookalike hosts are rejected.
 
@@ -628,8 +745,9 @@ The SDK sends only what matching needs: a synthesized user agent, platform, OS v
 | `POST /api/v1/sdk/init` | public | `DLN.init` |
 | `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` (referrer step) |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `onLink` with `resolve = true`, `resolveLink` |
 
-These calls are exempt from per-minute rate limits; `init` counts toward monthly active users.
+`init`, `referrer-lookup` and `match` are exempt from per-minute rate limits, and `init` counts toward monthly active users. `resolve` counts toward your key's per-minute limit (600 a minute on the Developer and Startup plans) but not toward the monthly API quota.
 
 ## Support
 
@@ -649,6 +767,8 @@ When a user taps one of your links before installing your app, `checkDeferredDee
 
 - **iOS**: 1. the link the landing page copied to the pasteboard (exact), then 2. fingerprint matching (best effort).
 - **Android**: 1. the Play Install Referrer (exact), then 2. fingerprint matching (best effort).
+
+From 1.4.0, `onLink` (or the `useDeepLink()` hook) gives you the deferred link and every link that opens the installed app through one handler, so you write your routing once.
 
 It is not an analytics or attribution SDK. It never reads advertising identifiers and never triggers the App Tracking Transparency prompt.
 
@@ -687,7 +807,7 @@ npm install @deeplinknow/react-native
 cd ios && pod install
 ```
 
-If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.3.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
+If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~> 1.4.0)`, your local CocoaPods spec cache is older than the release. Run `cd ios && pod install --repo-update` once.
 
 Autolinking picks the right native module (TurboModule on the new architecture, bridge module on the old one). Add the Associated Domains entitlement (`applinks:myapp.deeplinknow.com`) on iOS and an `autoVerify` https intent filter for your link domains on Android. See the [iOS](/docs/ios) and [Android](/docs/android) docs for details and the dashboard settings that serve the `.well-known` files.
 
@@ -710,7 +830,46 @@ Config options: `enableLogs` (default `false`), `baseUrl` (default `https://deep
 
 For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
 
+### Handle every link with one handler
+
+From 1.4.0, `onLink` hands your app the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (a Universal Link, an App Link or your URL scheme). The SDK reads `Linking.getInitialURL()` and `url` events itself, so you don't write any `Linking` code. This is the recommended setup for new integrations without Expo Router:
+
+```typescript
+import DeepLinkNow from "@deeplinknow/react-native";
+
+const unsubscribe = DeepLinkNow.onLink(
+  (link) => {
+    // link.type    "deferred" (first launch after install) or "direct"
+    // link.source  "referrer" | "clipboard" | "fingerprint" | "universalLink" | "appLink" | "scheme"
+    navigate(link.path, link.queryParams);
+  },
+  { apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+);
+```
+
+Registering the handler starts the first-launch check, the same single check as `checkDeferredDeepLink()`, so calling both doesn't run it twice. With `apiKey` set, `onLink` initializes the SDK first. A link that arrives before you register is handed to the first handler once, and the same URL within 3 seconds counts as one open. A direct open has `confidenceScore` 100 and `matchQuality` `"HIGH"`.
+
+In a React component, `useDeepLink()` gives you the same thing as state: `{ link, pendingLink, pendingLinks, isLoading, release, clear }`. It takes the same options as `onLink`, plus `enabled`.
+
+Options:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `apiKey`, `config` | unset | Initialize first when the SDK isn't initialized yet |
+| `minConfidence`, `useClipboard` | off, `true` | Passed to the first-launch check (see [Get the deferred deep link](#get-the-deferred-deep-link)) |
+| `hold` | `false` | Keep links in `DeepLinkNow.pendingLinks` instead of calling the handler |
+| `schemes` | the Expo config's `scheme` | Your custom URL schemes, for example `["myapp"]` |
+| `resolve` | `false` | Look up each Universal Link or App Link on the server before delivering it |
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. With `hold: true` the SDK keeps the latest deferred link and the latest direct one in `DeepLinkNow.pendingLinks` (deferred first; `DeepLinkNow.pendingLink` is the first of them). When sign-in finishes, `DeepLinkNow.releasePendingLink()` delivers them and ends the hold, so later links go straight to your handler. `DeepLinkNow.clearPendingLink()` drops them and keeps holding. With the hook, pass `hold: !isSignedIn` and the link is delivered once when the user signs in (see [Open the link after sign-in](#open-the-link-after-sign-in)).
+
+**Custom URL schemes.** `myapp://products/1?x=1` arrives with `path` `/products/1` and `source` `"scheme"`. Expo apps get the `scheme` from the Expo config by default. Bare React Native apps must pass the list themselves, for example `schemes: ["myapp"]`, or scheme links aren't delivered.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve: true`, the SDK calls `GET /api/v1/sdk/resolve` for each Universal Link or App Link open and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata` before delivering it, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, bounded by `timeoutMs`, so it's off by default. If the lookup fails, times out or finds nothing, you get the link unresolved. `await DeepLinkNow.resolveLink(url)` does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
 ### Get the deferred deep link
+
+`checkDeferredDeepLink()` keeps working, and it's what `onLink` runs on first launch. Call it yourself if you'd rather not use a handler:
 
 ```typescript
 const link = await DeepLinkNow.checkDeferredDeepLink();
@@ -757,6 +916,8 @@ Using Expo Router? See [Expo Router](#expo-router).
 | `matchQuality` | `"HIGH" \| "MEDIUM" \| "LOW"` | `HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49 |
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | optional | From the server |
 | `matchDetails` | optional | Score breakdown (fingerprint results) |
+
+The `DLNLink` that `onLink` delivers has the same fields plus `type` (`"deferred"` or `"direct"`), and its `source` can also be `"universalLink"`, `"appLink"` or `"scheme"`.
 
 ## Expo Router
 
@@ -818,6 +979,7 @@ The helper never throws. If something fails (offline, a wrong API key), the app 
 | `useClipboard` | `true` | iOS: check the link the landing page copied first |
 | `timeoutMs` | `3000` | The longest the first launch waits for the link, in milliseconds. `0` never waits |
 | `mapUniversalLinks` | `true` | Rewrite links on your DeepLinkNow domains to their in-app path |
+| `routeDeferredLink` | `true` | Open the app on the deferred link at launch. Set `false` to start on the normal route and deliver the link through the hook instead (1.4.0, see [Open the link after sign-in](#open-the-link-after-sign-in)) |
 | `mapLink` | the link's `fullPath` | `(link, source) => string \| null`. Use it when your screen paths differ from your link paths. `source` is `"deferred"` or `"universal"`. Return `null` to keep the incoming URL |
 
 For example, if your links look like `/p/123` but the screen is `app/products/[id].tsx`:
@@ -835,29 +997,43 @@ If you already have a `redirectSystemPath` with your own rewrites, call `redirec
 
 ### Open the link after sign-in
 
-If a deep-linked screen needs a signed-in user, set `timeoutMs: 0` in `+native-intent.tsx` so the app starts immediately and every deferred link comes through the hook, then navigate once the user has signed in:
+If a deep-linked screen needs a signed-in user, hold the link until sign-in finishes, then open it once. From 1.4.0, set `routeDeferredLink: false` in `+native-intent.tsx`. The helper still starts the check at launch, so the link is found inside its 1-hour claim window, but the app starts on its normal route:
+
+```tsx
+// app/+native-intent.tsx
+import { createRedirectSystemPath } from "@deeplinknow/react-native/expo-router";
+
+export const redirectSystemPath = createRedirectSystemPath({
+  apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  routeDeferredLink: false,
+});
+```
+
+Then hold the link in your root layout with `useDeepLink()`:
 
 ```tsx
 // app/_layout.tsx
-import { useDeferredDeepLink } from "@deeplinknow/react-native";
+import { useDeepLink } from "@deeplinknow/react-native";
 import { Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
 
 export default function RootLayout() {
-  const { link, clear } = useDeferredDeepLink();
   const { isSignedIn } = useAuth(); // your auth
   const router = useRouter();
+  const { link, pendingLink } = useDeepLink({ hold: !isSignedIn });
 
   useEffect(() => {
-    if (link && isSignedIn) {
-      clear(); // so it opens once
-      router.push(link.fullPath);
-    }
-  }, [link, isSignedIn]);
+    if (link) router.push(link.fullPath); // a new object for every link, delivered once
+  }, [link]);
 
+  // On the sign-in screen, `pendingLink` can say "Sign in to open your invite".
   return <Stack />;
 }
 ```
+
+While `hold` is true, a new link waits in `pendingLink`. When the user signs in it moves to `link`, once. `release()` delivers it early and ends the hold, and `clear()` drops it while still holding (on sign-out, or when the user declines the invite). Expo Router opens Universal Links, App Links and your scheme links itself through `+native-intent`, so `useDeepLink()` doesn't deliver those a second time; protect those routes with your layout's auth redirect as usual. The held link lives in memory only, so if the app is killed before sign-in it's gone.
+
+`useDeferredDeepLink()` also takes `hold` and an `onLink` callback from 1.4.0, and the 1.3 pattern (`timeoutMs: 0` in the helper, then `if (link && isSignedIn) { clear(); router.push(link.fullPath); }` in an effect) still works.
 
 ### Without Expo Router
 
@@ -892,6 +1068,8 @@ It returns `{ link, isLoading, clear }`. `link` is `null` until a link is found,
 - **You choose the threshold.** `minConfidence` is off by default. Use `matchQuality` or `confidenceScore` to decide what to route automatically and what to confirm with the user.
 
 ## Handling links that open the app
+
+With `onLink` or `useDeepLink()` you don't need this: the SDK reads the URLs itself (see [Handle every link with one handler](#handle-every-link-with-one-handler)). Without them, read the URL with `Linking` and parse it:
 
 ```typescript
 import { Linking } from "react-native";
@@ -931,6 +1109,7 @@ The native SDKs send only what matching needs (platform, OS version, device clas
 | `POST /api/v1/sdk/init` | public | `initialize` (exactly one call per `initialize`) |
 | `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` on Android |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `onLink` with `resolve: true`, `resolveLink` |
 
 ## Support
 
@@ -946,12 +1125,14 @@ Source: https://deeplinknow.com/docs/flutter
 
 [`deeplinknow`](https://pub.dev/packages/deeplinknow) is the Flutter plugin for DeepLinkNow. It gives Flutter and FlutterFlow apps the same two calls as the native SDKs: initialize, and get the deferred deep link.
 
-The plugin is a thin wrapper over the native [iOS](/docs/ios) and [Android](/docs/android) SDKs (1.3). All deferred-link logic runs natively: the pasteboard and Install Referrer steps, fingerprint matching, first-launch handling and link parsing. So a Flutter app gets the same answers as a Swift, Kotlin or React Native app.
+The plugin is a thin wrapper over the native [iOS](/docs/ios) and [Android](/docs/android) SDKs (1.4). All deferred-link logic runs natively: the pasteboard and Install Referrer steps, fingerprint matching, first-launch handling and link parsing. So a Flutter app gets the same answers as a Swift, Kotlin or React Native app.
 
 When a user taps one of your links before installing your app, `checkDeferredDeepLink()` returns the path and query they tapped:
 
 - **iOS**: 1. the link the landing page copied to the pasteboard (exact), then 2. fingerprint matching (best effort).
 - **Android**: 1. the Play Install Referrer (exact), then 2. fingerprint matching (best effort).
+
+From 1.4.0, the `DeepLinkNow.links` stream gives you the deferred link and every link that opens the installed app in one place, so you write your routing once.
 
 It is not an analytics or attribution SDK. It never reads advertising identifiers and never triggers the App Tracking Transparency prompt.
 
@@ -968,10 +1149,12 @@ It is not an analytics or attribution SDK. It never reads advertising identifier
 flutter pub add deeplinknow
 ```
 
+Or add `deeplinknow: ^1.4.0` to `pubspec.yaml` yourself.
+
 This also installs `deeplinknow_ios`, the plugin's iOS implementation. You don't add it yourself.
 
 - **iOS**: nothing else to install. With Swift Package Manager (the default in recent Flutter) Xcode fetches `dln-ios`; with CocoaPods, `pod install` (which `flutter run` and `flutter build` run for you) fetches the `DeepLinkNow` pod. With CocoaPods, set at least `platform :ios, '13.0'` in `ios/Podfile`. No `Info.plist` keys are needed.
-- **Android**: the native SDK (`com.deeplinknow:dln-android:1.3.0`) comes from Maven Central, which new Flutter projects already list in `android/settings.gradle(.kts)`. Make sure `minSdk` is at least 24 in `android/app/build.gradle(.kts)`.
+- **Android**: the native SDK (`com.deeplinknow:dln-android:1.4.0`) comes from Maven Central, which new Flutter projects already list in `android/settings.gradle(.kts)`. Make sure `minSdk` is at least 24 in `android/app/build.gradle(.kts)`.
 
 Stop the app and rebuild it after adding the package. Hot restart doesn't load native code.
 
@@ -1080,6 +1263,38 @@ A `QueryValue` is one of:
 
 Use `.stringValue` for the common case (`link.queryParams['ref']?.stringValue`), `.stringValues` for lists, or switch on the type.
 
+### Every open in one stream
+
+From 1.4.0, `DeepLinkNow.links` hands you the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (a Universal Link, an App Link or your app's URL scheme). The plugin reads the launch URL and later URLs itself, so you don't need `app_links`. This is the recommended setup for new integrations:
+
+```dart
+DeepLinkNow.links.listen((link) => router.go(link.fullPath));
+DeepLinkNow.listen(); // starts the stream; before or after initialize is fine
+await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+```
+
+`link.type` is `DLNLinkType.deferred` or `.direct`, and `link.source` says how it arrived (`clipboard`, `referrer`, `fingerprint`, `universalLink`, `appLink` or `scheme`). `listen()` runs the first-launch check for you, with the same steps and the same once-per-install rule as `checkDeferredDeepLink()`. Links arrive after `initialize` finishes, deferred first. If a link arrives before you subscribe, the latest one of each kind is replayed to your first listener, and the same URL twice within 3 seconds counts as one open.
+
+Turn off Flutter's own deep linking so the engine doesn't also push the path as a route: set `FlutterDeepLinkingEnabled` to `NO` in `ios/Runner/Info.plist`, and add `<meta-data android:name="flutter_deeplinking_enabled" android:value="false" />` inside the `<activity>` in `AndroidManifest.xml`.
+
+`listen` takes `DLNLinkOptions(minConfidence, useClipboard, force, hold, resolve, schemes)`. The first three go to the first-launch check.
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. With `hold: true` the links wait in `DeepLinkNow.pendingLinks` (deferred first; `DeepLinkNow.pendingLink` is the first of them) instead of reaching the stream:
+
+```dart
+DeepLinkNow.listen(const DLNLinkOptions(hold: true));
+// After sign-in: deliver them and stop holding
+DeepLinkNow.releasePendingLink();
+// Or drop them and keep holding (on sign-out, say)
+DeepLinkNow.clearPendingLink();
+```
+
+**Custom URL schemes.** `myapp://products/123?x=1` arrives with `path` `/products/123` and `source` `scheme`. By default the schemes in your Info.plist (`CFBundleURLSchemes`) or your Android manifest count. Pass `DLNLinkOptions(schemes: ['myapp'])` to list them yourself.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve: true`, the plugin calls `GET /api/v1/sdk/resolve` for each https open on your domains and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata`, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, bounded by your timeout, so it's off by default. If the lookup fails or finds nothing, the link still arrives, unresolved. `DeepLinkNow.resolveLink(url)` does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
+`checkDeferredDeepLink()` keeps working as shown above, so you can move to the stream when it suits you.
+
 ## How fingerprint matching works
 
 - The landing page stores a small description of the click: IP address, device class, OS version, screen size, language, time zone, and the path and query that were tapped.
@@ -1090,7 +1305,7 @@ Use `.stringValue` for the common case (`link.queryParams['ref']?.stringValue`),
 
 ## Handling links that open the app
 
-When the app is already installed, a tap on your link opens it directly (Universal Link / App Link). Receive the URL with a package such as [`app_links`](https://pub.dev/packages/app_links), then parse it with the same rules as the deferred result:
+When the app is already installed, a tap on your link opens it directly (Universal Link / App Link). From 1.4.0 the [`links` stream](#every-open-in-one-stream) delivers these opens for you. Without it, receive the URL with a package such as [`app_links`](https://pub.dev/packages/app_links), then parse it with the same rules as the deferred result:
 
 ```dart
 final parsed = await DeepLinkNow.parseDeepLink(uri.toString());
@@ -1126,13 +1341,18 @@ All members are static on `DeepLinkNow`.
 | `parseDeepLink(url)` | `Future<ParsedDeepLink?>` | Validate and parse a URL on your link domains |
 | `isValidDomain(host)` | `Future<bool>` | Whether the host is one of your link domains |
 | `lastError` | `DLNError?` | Last failure of `initialize`, `checkDeferredDeepLink` or `findDeferredUser` |
-| `sdkVersion` | `String` | `"1.3.0"` |
+| `sdkVersion` | `String` | `"1.4.0"` |
+| `links` | `Stream<DLNLink>` | 1.4.0: every open, deferred or direct (a broadcast stream) |
+| `listen([options])` | `void` | 1.4.0: starts `links`, with `DLNLinkOptions` |
+| `pendingLink` / `pendingLinks` | `DLNLink?` / `List<DLNLink>` | 1.4.0: links kept by `hold: true`, deferred first |
+| `releasePendingLink()` / `clearPendingLink()` | `void` | 1.4.0: deliver them and end the hold / drop them |
+| `resolveLink(url)` | `Future<DLNLink?>` | 1.4.0: looks the link up on the server; unresolved on a miss or failure, `null` if it isn't your link |
 
-Not in the Flutter plugin: a link stream for direct opens (use `app_links`) and `createDeepLink`. Web, macOS, Windows and Linux aren't supported: there, every call resolves `null` or `false` and `lastError` is `notInitialized`.
+Not in the Flutter plugin: `createDeepLink`. Web, macOS, Windows and Linux aren't supported: there, every call resolves `null` or `false` and `lastError` is `notInitialized`.
 
 ## FlutterFlow
 
-Add `deeplinknow: ^1.3.0` under a custom action's **Pubspec Dependencies**. The [FlutterFlow guide](/docs/flutterflow) has the custom action that opens the right FlutterFlow page from the link, plus the entitlement and intent filter steps in FlutterFlow's Configuration Files.
+Add `deeplinknow: ^1.4.0` under a custom action's **Pubspec Dependencies**. The [FlutterFlow guide](/docs/flutterflow) has the custom action that opens the right FlutterFlow page from the link, plus the entitlement and intent filter steps in FlutterFlow's Configuration Files.
 
 ## Testing your integration
 
@@ -1154,6 +1374,7 @@ The plugin adds nothing to what the native SDKs collect: the device fields used 
 | `POST /api/v1/sdk/init` | public | `initialize` (one call per `initialize`) |
 | `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` on Android |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `listen` with `resolve: true`, `resolveLink` |
 
 ## Support
 
@@ -1189,7 +1410,7 @@ Your link domain is `<alias>.deeplinknow.com`, shown on the app's Overview.
    - turn on **Include BuildContext**;
    - add one argument, `publicKey`, of type **String**;
    - set the return value to **String**, nullable;
-   - under **Pubspec Dependencies**, add `deeplinknow: ^1.3.0`.
+   - under **Pubspec Dependencies**, add `deeplinknow: ^1.4.0`.
 3. Keep the automatic imports FlutterFlow puts at the top of the file, and replace everything below `// DO NOT REMOVE OR MODIFY THE CODE ABOVE!` with:
 
 ```dart
@@ -1628,7 +1849,7 @@ If your Dynamic Links used your own domain (such as `links.yourapp.com`) rather 
 
 Each short link becomes a link on the same path, so `https://links.yourapp.com/abc123` is stored as `abc123`. Its target URL is the original Firebase deep link, its link name becomes the title, and the social title, description and image carry over. The other Firebase parameters (`apn`, `ibi`, `utm_source` and so on) are kept in the link's metadata under `fdl`.
 
-When someone taps an imported link and installs your app, the deferred result carries the original deep link in `targetUrl`. When the app is already installed, the link opens it directly without reaching DeepLinkNow, so look the path up yourself:
+When someone taps an imported link and installs your app, the deferred result carries the original deep link in `targetUrl`. When the app is already installed, the link opens it directly without reaching DeepLinkNow. From SDK 1.4.0, register `onLink` with `resolve: true` and the SDK looks each open up for you, so `link.targetUrl` holds the original deep link (see the [iOS](/docs/ios#handle-every-link-with-one-handler), [Android](/docs/android#handle-every-link-with-one-handler), [React Native](/docs/react-native#handle-every-link-with-one-handler) and [Flutter](/docs/flutter#every-open-in-one-stream) docs). Otherwise, look the path up yourself:
 
 ```typescript
 const res = await fetch(
@@ -1694,8 +1915,8 @@ These files are served from your saved settings and cached for up to 5 minutes.
 ## SDK installation
 
 - [ ] **React Native / Expo**: `npx expo install @deeplinknow/react-native` (development build, not Expo Go) or `npm install @deeplinknow/react-native` + `pod install`
-- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.3'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
-- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.3.0")` (the library declares `INTERNET` itself)
+- [ ] **iOS**: `pod 'DeepLinkNow', '~> 1.4'` or Swift Package Manager `https://github.com/deeplinknow/dln-ios`
+- [ ] **Android**: `implementation("com.deeplinknow:dln-android:1.4.0")` (the library declares `INTERNET` itself)
 - [ ] **Flutter**: `flutter pub add deeplinknow` (iOS 13+, Android `minSdk` 24; rebuild the app after adding it)
 - [ ] iOS: Associated Domains `applinks:myapp.deeplinknow.com` (and your custom domain)
 - [ ] Android: `autoVerify` https intent filter for `myapp.deeplinknow.com` (and your custom domain)
@@ -1710,8 +1931,9 @@ These files are served from your saved settings and cached for up to 5 minutes.
 
 ## Deferred deep linking
 
-- [ ] Call `checkDeferredDeepLink()` once on launch, after initialization
-- [ ] Route to `link.path` with `link.queryParams` when it returns a link
+- [ ] Register `onLink` at launch (Flutter: `DeepLinkNow.links` and `listen()`), or call `checkDeferredDeepLink()` once on launch, after initialization
+- [ ] Route to `link.path` with `link.queryParams` when a link arrives
+- [ ] If linked screens need a signed-in user, register with `hold` and call `releasePendingLink()` after sign-in
 - [ ] Decide your threshold for fingerprint results. Every result carries `confidenceScore` (0–100) and `matchQuality` (`HIGH` 75+, `MEDIUM` 50–74, `LOW` 30–49). The optional `minConfidence` filter is off by default.
 - [ ] Consider confirming `MEDIUM` or `LOW` fingerprint matches with the user before routing
 - [ ] iOS: decide whether to keep the pasteboard step (`useClipboard`, default `true`), which can show the iOS 16+ paste prompt
@@ -1719,7 +1941,9 @@ These files are served from your saved settings and cached for up to 5 minutes.
 
 ## Links that open the installed app
 
-- [ ] Pass incoming Universal Links / App Links to `parseDeepLink(url)`
+- [ ] With `onLink`: pass incoming URLs to `DeepLinkNow.handle(url)` (iOS) or intents to `DLN.handleIntent(intent)` in `onCreate` and `onNewIntent` (Android). React Native and Flutter read them for you. Without `onLink`, pass them to `parseDeepLink(url)`
+- [ ] Custom URL schemes: bare React Native apps list them in `schemes`; the other SDKs read them from Info.plist, the Android manifest or the Expo config
+- [ ] Imported Firebase short links: turn on `resolve` so each open carries the original deep link in `targetUrl`
 - [ ] Route deferred and direct links through the same function
 
 ```typescript
@@ -1780,102 +2004,6 @@ function route(path: string, query: Record<string, string | true | string[]>) {
 - [iOS](/docs/ios), [Android](/docs/android), [React Native](/docs/react-native), [Flutter](/docs/flutter)
 - [MCP server for coding agents](/docs/mcp)
 - Email: support@deeplinknow.com
-
----
-Source: https://deeplinknow.com/docs/smart-banner
-
-# Smart banner
-
-Show phone visitors of your website a bar that opens the page they're on in your app, or sends them to the store if they don't have it yet. It's one script tag, it makes no other request, and it sets no cookie. Smart banners are included on Startup and higher plans, and in the free trial.
-
-## Set it up
-
-1. In the dashboard, open your app's **Settings › Smart banner**.
-2. Turn on **Show the banner** and list the websites it may show on, one per line, exactly as they appear in the address bar: `https://www.example.com`. Add `https://example.com` too if your site answers on both. For local testing, `http://localhost:3000` works.
-3. Optionally change the title, subtitle and button text. Blank fields use your link page's title and subtitle, then "Continue in the app" and "Open".
-4. Pick where it sits, how long it stays hidden after a visitor closes it, and which link the button opens. Save.
-5. Copy the tag for your link domain and paste it into every page of your site, in `<head>` or before `</body>`:
-
-```html
-<script async src="https://myapp.deeplinknow.com/.well-known/dln/open.js" referrerpolicy="no-referrer"></script>
-```
-
-If your app has a custom domain, the dashboard shows a tag for it as well (for example `https://links.example.com/.well-known/dln/open.js`). Use that one to keep everything on your own domains.
-
-Changes you save reach your site within 5 minutes, because the script is cached for that long.
-
-## What visitors see
-
-The bar shows in Safari, Chrome and other browsers on iPhone, iPad and Android, on the websites you listed. It doesn't show on desktop, inside an app's own web view, or on any other site that copies your tag.
-
-At the top, the bar sits above your page in the page flow, so it pushes the content down and scrolls away with it. At the bottom, it stays fixed above the home indicator, and the script adds the same height of space at the end of your page so nothing stays hidden behind it.
-
-It follows the visitor's light or dark mode and skips the slide-in animation when they've asked for reduced motion. The icon is your app icon when that file is 48 KB or smaller (a 128 × 128 PNG is plenty); otherwise the bar shows your app's first two letters.
-
-## Which link the button opens
-
-By default the button opens the same path and query on your link domain. A visitor on
-
-```
-https://www.example.com/products/123?ref=newsletter
-```
-
-taps through to
-
-```
-https://myapp.deeplinknow.com/products/123?ref=newsletter
-```
-
-If the app is installed, Universal Links and App Links open it on that path. If it isn't, the link page sends the visitor to the App Store or Play Store, and after install `checkDeferredDeepLink()` returns `/products/123` with `{ ref: "newsletter" }`. Your app handles it like any other DeepLinkNow link, so pages whose paths match your app's routes need no mapping.
-
-If your website's paths don't match your app, choose **Always the same link** and enter one path, such as `/welcome`. Every page then opens that link.
-
-The script never adds parameters to the link.
-
-## Closing it
-
-The close button hides the bar for the period you chose: until the tab is closed, a day, a week, or for good. That choice is the only thing the script stores, in the visitor's own browser under the key `dln-open:<your alias>`. If the browser blocks storage, the bar just shows again on the next page.
-
-## Single-page apps
-
-Back and forward navigation updates the bar on its own. After a client-side route change, call `refresh()` so the button points at the new page:
-
-```js
-window.DeepLinkNowBanner?.refresh();
-```
-
-`window.DeepLinkNowBanner?.hide()` removes the bar from the current page view without counting as a close. The object always exists once the tag has loaded, even when the banner is off for your plan or site, so these calls are safe anywhere.
-
-In Next.js App Router, for example:
-
-```tsx
-"use client";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
-
-export function RefreshAppBar() {
-  const pathname = usePathname();
-  const search = useSearchParams();
-  useEffect(() => {
-    (window as any).DeepLinkNowBanner?.refresh();
-  }, [pathname, search]);
-  return null;
-}
-```
-
-## Privacy
-
-The script tag is the only request. The script makes no network call of its own and sets no cookie. It reads the user agent to tell phones from desktops and stores the visitor's close, and that's all. DeepLinkNow doesn't count impressions. A tap is a normal visit to your link page and shows up in your link's click count like any other.
-
-The tag's `referrerpolicy="no-referrer"` keeps your page's address out of the script request. Ad blockers have nothing to block: the script lives on your link domain under `/.well-known/`, and nothing in it looks like an ad or a tracker.
-
-## Troubleshooting
-
-- If nothing shows, check that you're on a phone (or a phone user agent), that the page's origin is in the list exactly (`https://www.example.com` and `https://example.com` are different sites), that the banner is on, and that you haven't closed it earlier. Clear the site's storage to see it again.
-- With a Content Security Policy, allow your link domain in `script-src`, for example `script-src 'self' https://myapp.deeplinknow.com`. No other directive needs a change.
-- If iOS shows two bars, the second is Safari's own Smart App Banner, from a `<meta name="apple-itunes-app">` tag. Remove that tag if you use this one.
-- If the app opens on the wrong screen, remember the button passes the page's path. Handle that path in your app, or switch to **Always the same link**.
-- If your own app shows your website in a web view, the bar stays hidden there as long as the web view keeps its default user agent. If your web view uses a browser-like user agent, call `window.DeepLinkNowBanner?.hide()` from it.
 
 ---
 Source: https://deeplinknow.com/pricing
@@ -2516,9 +2644,7 @@ Detour is the closest thing to what I built: deferred deep links for React Nativ
 | Match window | 1 hour: long enough for an install and first launch, short enough that an old click can't go to the wrong person | 15 minutes by default, configurable from 5 to 180 | Level | [3] |
 | Expo Router | A +native-intent helper (@deeplinknow/react-native/expo-router) and a useDeferredDeepLink() hook | A +native-intent handler and a DetourProvider, with examples that keep the link through sign-in | Level | [4] [6] |
 | How long click data is kept | A deferred link can be claimed for 1 hour after the click, and stored fingerprints are deleted within 30 days. | The privacy policy says data is kept "as long as needed to provide" the service and gives no period | DeepLinkNow | [7] |
-| Smart banner | A tracker-free script for your website on Startup and up, with no impression counting, cookies or extra requests | A script on Starter and up, with templates, scheduling and impression counts | Level | [4] |
 | Instagram and TikTok | On iOS the link page gets out of Instagram, Threads and Facebook to the App Store, and walks TikTok users through opening it in their browser | Hands off out of Instagram, Threads and Facebook on iOS, with a browser prompt for TikTok | Level | [4] |
-| Scheduled exports | Signed daily, weekly or monthly link counts to your HTTPS endpoint on paid plans, plus a CSV download | Signed daily, weekly or monthly analytics to your HTTPS endpoint on paid plans | Level | [4] |
 
 ## Where DeepLinkNow is ahead
 
@@ -2532,8 +2658,9 @@ Detour is the closest thing to what I built: deferred deep links for React Nativ
 ## Pick Detour if…
 
 - You'd rather depend on Software Mansion, a well-known React Native company with a big open-source track record.
+- You want a smart banner for your website, or analytics in the same tool as your links, like install counts and scheduled exports to your own server. I keep DeepLinkNow out of analytics and hand your app the link to send wherever you already measure things.
 
-Sources: [5]
+Sources: [5] [4]
 
 If you want a free plan sized for a real launch and a score you can set your own threshold on, try mine first.
 
@@ -2558,7 +2685,7 @@ Detour bills on link clicks: 1,500 free, 70,000 for $19, 350,000 for $79. I bill
 
 ### When is Detour the better choice?
 
-You'd rather depend on Software Mansion, a well-known React Native company with a big open-source track record.
+You'd rather depend on Software Mansion, a well-known React Native company with a big open-source track record. You want a smart banner for your website, or analytics in the same tool as your links, like install counts and scheduled exports to your own server. I keep DeepLinkNow out of analytics and hand your app the link to send wherever you already measure things.
 
 ### Can I run DeepLinkNow next to Detour?
 

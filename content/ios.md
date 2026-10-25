@@ -9,7 +9,7 @@ On iOS the deferred link comes from two sources, tried in this order:
 1. **Pasteboard (exact).** The landing page copies the tapped link before sending the user to the App Store. On first launch the SDK reads it back.
 2. **Fingerprint (best effort).** If the pasteboard has no link of yours, the SDK asks the server for scored candidates from clicks on your link pages in the last hour.
 
-You get both with one call: `checkDeferredDeepLink()`.
+You get both with one call: `checkDeferredDeepLink()`. From 1.4.0, `onLink` gives you the deferred link and every link that opens the installed app through one handler, so you write your routing once.
 
 ## Requirements
 
@@ -25,22 +25,22 @@ You get both with one call: `checkDeferredDeepLink()`.
 In Xcode choose **File > Add Package Dependencies...** and enter `https://github.com/deeplinknow/dln-ios`, or add it to `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.3.0")
+.package(url: "https://github.com/deeplinknow/dln-ios.git", from: "1.4.0")
 ```
 
 ### CocoaPods
 
 ```ruby
-pod 'DeepLinkNow', '~> 1.3'
+pod 'DeepLinkNow', '~> 1.4'
 ```
 
-Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.3)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
+Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.4)`, your local CocoaPods spec cache is older than the release: run `pod install --repo-update` once.
 
 ### Universal Links (Associated Domains)
 
 1. In the dashboard, set your app's **Team ID / App ID prefix** and **Bundle ID**. DeepLinkNow serves `https://<alias>.deeplinknow.com/.well-known/apple-app-site-association` (and the same file for a verified custom domain) from those values. Changes are live within 5 minutes.
 2. In Xcode, open **Signing & Capabilities → Associated Domains** and add `applinks:<alias>.deeplinknow.com`, plus `applinks:<your-custom-domain>` if you have one.
-3. Pass incoming URLs to `parseLink` (see [Handling links that open the app](#handling-links-that-open-the-app)).
+3. Pass incoming URLs to `DeepLinkNow.handle(url)` (see [Handle every link with one handler](#handle-every-link-with-one-handler)).
 
 ## Getting started
 
@@ -79,9 +79,62 @@ do {
 
 For local testing before you have created an app, you can use the demo key `test_api_key`. It returns mock responses and never touches real data.
 
+### Handle every link with one handler
+
+From 1.4.0, `onLink` hands your app the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (direct). This is the recommended setup for new integrations:
+
+```swift
+// At launch
+Task { await DeepLinkNow.initialize(config: DLNConfig(apiKey: "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")) }
+DeepLinkNow.onLink { link in            // runs on the main actor
+    // link.type    .deferred (first launch after install) or .direct
+    // link.source  .clipboard / .fingerprint for deferred, .universalLink / .scheme for direct
+    router.open(path: link.path, query: link.queryParams)
+}
+
+// SwiftUI: hand every URL that opens the app to the SDK
+.onOpenURL { url in
+    if !DeepLinkNow.handle(url) { /* not one of your links: route it yourself */ }
+}
+.onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+    if let url = activity.webpageURL { DeepLinkNow.handle(url) }
+}
+
+// UIKit: scene(_:continue:) or application(_:continue:restorationHandler:)
+if let url = userActivity.webpageURL { DeepLinkNow.handle(url) }
+```
+
+Registering the handler runs the first-launch check for you, with the same pasteboard and fingerprint steps and the same once-per-install rule as `checkDeferredDeepLink()`. If you register before `initialize` has finished, the check waits for it. A link that arrives before you register is handed to the handler when you do, and the same URL handed in twice within 3 seconds is delivered once.
+
+`handle(_:)` returns `true` for a link on your link domains and for your own URL scheme, and `false` for anything else (`mailto:`, `tel:`, https links on other hosts), which you route yourself. A direct open has `confidenceScore` 100 and `matchQuality` `.high`.
+
+Options (`DLNLinkOptions`, passed as `DeepLinkNow.onLink(options: …) { … }`):
+
+| Option | Default | Meaning |
+|---|---|---|
+| `minConfidence`, `useClipboard`, `force` | `nil`, `true`, `false` | Passed to the first-launch check (see [Get the deferred deep link](#get-the-deferred-deep-link)) |
+| `hold` | `false` | Keep links in `DeepLinkNow.pendingLinks` instead of calling the handler |
+| `schemes` | your Info.plist schemes | The custom URL schemes `handle(_:)` accepts, for example `["myapp"]` |
+| `resolve` | `false` | Look up each Universal Link on the server before delivering it |
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. Register with `hold: true` and the SDK keeps the latest deferred link and the latest direct one in `DeepLinkNow.pendingLinks` (deferred first; `DeepLinkNow.pendingLink` is the first of them). You can read `pendingLink` to show "Sign in to open your invite". When sign-in finishes, `releasePendingLink()` delivers them to your handler and ends the hold, so later links go straight through. `clearPendingLink()` drops them and keeps holding, for example when the user signs out.
+
+```swift
+DeepLinkNow.onLink(options: DLNLinkOptions(hold: true)) { link in
+    router.open(path: link.path, query: link.queryParams)
+}
+
+// After sign-in
+DeepLinkNow.releasePendingLink()
+```
+
+**Custom URL schemes.** `myapp://products/123?x=1` arrives with `path` `/products/123` and `source` `.scheme`. By default the SDK accepts the schemes your Info.plist declares under `CFBundleURLTypes` → `CFBundleURLSchemes`. Pass `schemes: ["myapp"]` to list them yourself.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve: true`, the SDK calls `GET /api/v1/sdk/resolve` for each Universal Link open and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata` before delivering it, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, so it's off by default. If the lookup fails, times out or finds nothing, you get the link unresolved. `await DeepLinkNow.resolveLink(url)` does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
 ### Get the deferred deep link
 
-Call `checkDeferredDeepLink()` once on launch, after `initialize`:
+`checkDeferredDeepLink()` keeps working, and it's what `onLink` runs on first launch. If you'd rather call it yourself, call it once on launch, after `initialize`:
 
 ```swift
 if let link = await DeepLinkNow.checkDeferredDeepLink() {
@@ -108,7 +161,7 @@ do {
 
 How `checkDeferredDeepLink()` works:
 
-1. **Pasteboard**: if the pasteboard holds a link on one of your link domains (`<alias>.deeplinknow.com` or your verified custom domain), it is parsed locally and returned with `source = .clipboard`, `confidenceScore = 100`, `matchQuality = .high`. No server match call is made.
+1. **Pasteboard**: if the pasteboard holds a link on one of your link domains (`<alias>.deeplinknow.com` or your verified custom domain), it is parsed locally and returned with `source = .clipboard`, `confidenceScore = 100`, `matchQuality = .high`. No server match call is made. From 1.4.0, a copied link whose click has already been used (for example, one left on the pasteboard from an earlier install) isn't delivered, and the SDK moves on to fingerprinting.
 2. **Fingerprint**: otherwise the SDK calls `POST /api/v1/sdk/match` and returns the best candidate the server sent, with the server's `confidence_score` and `match_quality` unchanged (`source = .fingerprint`).
 
 It returns a link at most once per install. After a definitive answer (a link, or nothing found) later calls return `nil` without touching the pasteboard or the network. Errors don't count, so an offline first launch can still succeed on the next launch.
@@ -143,6 +196,8 @@ let link = await DeepLinkNow.checkDeferredDeepLink(
 | `deeplinkId`, `targetUrl`, `campaignId`, `metadata`, `matchedAt`, `expiresAt` | From the server (fingerprint results) |
 | `matchDetails` | Score breakdown (fingerprint results) |
 
+The `DLNLink` that `onLink` delivers has the same fields plus `type` (`.deferred` or `.direct`), and its `source` can also be `.universalLink` or `.scheme`.
+
 ## How fingerprint matching works
 
 Fingerprint matching is the backup for when the pasteboard is empty, the user denied the paste prompt, or you set `useClipboard: false`.
@@ -171,7 +226,7 @@ If you don't want the prompt, pass `useClipboard: false`, or show your own "Past
 
 ## Handling links that open the app
 
-When the app is already installed, a Universal Link opens it directly. Parse it with `parseLink`, which returns `nil` for URLs that are not on your link domains:
+When the app is already installed, a Universal Link opens it directly. With `onLink`, pass the URL to `DeepLinkNow.handle(url)` and your handler gets it (see [Handle every link with one handler](#handle-every-link-with-one-handler)). Without a handler, parse it with `parseLink`, which keeps working and returns `nil` for URLs that are not on your link domains:
 
 ```swift
 // SwiftUI
@@ -205,7 +260,7 @@ The building blocks behind `checkDeferredDeepLink()` stay available:
 | `parseDeepLink(_:)` | Older tuple form `(path, parameters)` of `parseLink(_:)` |
 | `isValidDomain(_:)` | The host rule: exactly `<alias>.deeplinknow.com` or a verified custom domain, case-insensitive |
 | `createDeepLink(path:customParameters:)` | Build an https link on your primary link domain that `parseLink` round-trips (`nil` before init) |
-| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.3.0"`) |
+| `isInitialized`, `initializationError`, `appInfo`, `sdkVersion` | Init state and SDK version (`"1.4.0"`) |
 
 If you call these yourself, check the pasteboard before fingerprinting:
 
@@ -230,8 +285,9 @@ The SDK sends only what matching needs: a synthesized user agent, platform, OS v
 |---|---|---|
 | `POST /api/v1/sdk/init` | public | `initialize`: validates the key and account, returns your link domains |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `onLink` with `resolve: true`, `resolveLink` |
 
-Both calls are exempt from per-minute rate limits; `init` counts toward monthly active users.
+`init` and `match` are exempt from per-minute rate limits, and `init` counts toward monthly active users. `resolve` counts toward your key's per-minute limit (600 a minute on the Developer and Startup plans) but not toward the monthly API quota.
 
 ## Support
 

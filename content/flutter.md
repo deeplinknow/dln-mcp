@@ -4,12 +4,14 @@
 
 [`deeplinknow`](https://pub.dev/packages/deeplinknow) is the Flutter plugin for DeepLinkNow. It gives Flutter and FlutterFlow apps the same two calls as the native SDKs: initialize, and get the deferred deep link.
 
-The plugin is a thin wrapper over the native [iOS](/docs/ios) and [Android](/docs/android) SDKs (1.3). All deferred-link logic runs natively: the pasteboard and Install Referrer steps, fingerprint matching, first-launch handling and link parsing. So a Flutter app gets the same answers as a Swift, Kotlin or React Native app.
+The plugin is a thin wrapper over the native [iOS](/docs/ios) and [Android](/docs/android) SDKs (1.4). All deferred-link logic runs natively: the pasteboard and Install Referrer steps, fingerprint matching, first-launch handling and link parsing. So a Flutter app gets the same answers as a Swift, Kotlin or React Native app.
 
 When a user taps one of your links before installing your app, `checkDeferredDeepLink()` returns the path and query they tapped:
 
 - **iOS**: 1. the link the landing page copied to the pasteboard (exact), then 2. fingerprint matching (best effort).
 - **Android**: 1. the Play Install Referrer (exact), then 2. fingerprint matching (best effort).
+
+From 1.4.0, the `DeepLinkNow.links` stream gives you the deferred link and every link that opens the installed app in one place, so you write your routing once.
 
 It is not an analytics or attribution SDK. It never reads advertising identifiers and never triggers the App Tracking Transparency prompt.
 
@@ -26,10 +28,12 @@ It is not an analytics or attribution SDK. It never reads advertising identifier
 flutter pub add deeplinknow
 ```
 
+Or add `deeplinknow: ^1.4.0` to `pubspec.yaml` yourself.
+
 This also installs `deeplinknow_ios`, the plugin's iOS implementation. You don't add it yourself.
 
 - **iOS**: nothing else to install. With Swift Package Manager (the default in recent Flutter) Xcode fetches `dln-ios`; with CocoaPods, `pod install` (which `flutter run` and `flutter build` run for you) fetches the `DeepLinkNow` pod. With CocoaPods, set at least `platform :ios, '13.0'` in `ios/Podfile`. No `Info.plist` keys are needed.
-- **Android**: the native SDK (`com.deeplinknow:dln-android:1.3.0`) comes from Maven Central, which new Flutter projects already list in `android/settings.gradle(.kts)`. Make sure `minSdk` is at least 24 in `android/app/build.gradle(.kts)`.
+- **Android**: the native SDK (`com.deeplinknow:dln-android:1.4.0`) comes from Maven Central, which new Flutter projects already list in `android/settings.gradle(.kts)`. Make sure `minSdk` is at least 24 in `android/app/build.gradle(.kts)`.
 
 Stop the app and rebuild it after adding the package. Hot restart doesn't load native code.
 
@@ -138,6 +142,38 @@ A `QueryValue` is one of:
 
 Use `.stringValue` for the common case (`link.queryParams['ref']?.stringValue`), `.stringValues` for lists, or switch on the type.
 
+### Every open in one stream
+
+From 1.4.0, `DeepLinkNow.links` hands you the same `DLNLink` whether the user tapped the link before installing (deferred) or the link opened the installed app (a Universal Link, an App Link or your app's URL scheme). The plugin reads the launch URL and later URLs itself, so you don't need `app_links`. This is the recommended setup for new integrations:
+
+```dart
+DeepLinkNow.links.listen((link) => router.go(link.fullPath));
+DeepLinkNow.listen(); // starts the stream; before or after initialize is fine
+await DeepLinkNow.initialize('dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+```
+
+`link.type` is `DLNLinkType.deferred` or `.direct`, and `link.source` says how it arrived (`clipboard`, `referrer`, `fingerprint`, `universalLink`, `appLink` or `scheme`). `listen()` runs the first-launch check for you, with the same steps and the same once-per-install rule as `checkDeferredDeepLink()`. Links arrive after `initialize` finishes, deferred first. If a link arrives before you subscribe, the latest one of each kind is replayed to your first listener, and the same URL twice within 3 seconds counts as one open.
+
+Turn off Flutter's own deep linking so the engine doesn't also push the path as a route: set `FlutterDeepLinkingEnabled` to `NO` in `ios/Runner/Info.plist`, and add `<meta-data android:name="flutter_deeplinking_enabled" android:value="false" />` inside the `<activity>` in `AndroidManifest.xml`.
+
+`listen` takes `DLNLinkOptions(minConfidence, useClipboard, force, hold, resolve, schemes)`. The first three go to the first-launch check.
+
+**Hold a link until the user signs in.** A deferred link often arrives while the user is still on your sign-in screen. With `hold: true` the links wait in `DeepLinkNow.pendingLinks` (deferred first; `DeepLinkNow.pendingLink` is the first of them) instead of reaching the stream:
+
+```dart
+DeepLinkNow.listen(const DLNLinkOptions(hold: true));
+// After sign-in: deliver them and stop holding
+DeepLinkNow.releasePendingLink();
+// Or drop them and keep holding (on sign-out, say)
+DeepLinkNow.clearPendingLink();
+```
+
+**Custom URL schemes.** `myapp://products/123?x=1` arrives with `path` `/products/123` and `source` `scheme`. By default the schemes in your Info.plist (`CFBundleURLSchemes`) or your Android manifest count. Pass `DLNLinkOptions(schemes: ['myapp'])` to list them yourself.
+
+**Short links imported from Firebase.** A short link such as `/abc123` means nothing to your app until it's looked up. With `resolve: true`, the plugin calls `GET /api/v1/sdk/resolve` for each https open on your domains and fills `deeplinkId`, `targetUrl`, `campaignId` and `metadata`, so `link.targetUrl` holds the original Firebase deep link. It adds a request to every open, bounded by your timeout, so it's off by default. If the lookup fails or finds nothing, the link still arrives, unresolved. `DeepLinkNow.resolveLink(url)` does the same lookup for one URL. See [Import your old short links](/docs/firebase-migration#import-your-old-short-links).
+
+`checkDeferredDeepLink()` keeps working as shown above, so you can move to the stream when it suits you.
+
 ## How fingerprint matching works
 
 - The landing page stores a small description of the click: IP address, device class, OS version, screen size, language, time zone, and the path and query that were tapped.
@@ -148,7 +184,7 @@ Use `.stringValue` for the common case (`link.queryParams['ref']?.stringValue`),
 
 ## Handling links that open the app
 
-When the app is already installed, a tap on your link opens it directly (Universal Link / App Link). Receive the URL with a package such as [`app_links`](https://pub.dev/packages/app_links), then parse it with the same rules as the deferred result:
+When the app is already installed, a tap on your link opens it directly (Universal Link / App Link). From 1.4.0 the [`links` stream](#every-open-in-one-stream) delivers these opens for you. Without it, receive the URL with a package such as [`app_links`](https://pub.dev/packages/app_links), then parse it with the same rules as the deferred result:
 
 ```dart
 final parsed = await DeepLinkNow.parseDeepLink(uri.toString());
@@ -184,13 +220,18 @@ All members are static on `DeepLinkNow`.
 | `parseDeepLink(url)` | `Future<ParsedDeepLink?>` | Validate and parse a URL on your link domains |
 | `isValidDomain(host)` | `Future<bool>` | Whether the host is one of your link domains |
 | `lastError` | `DLNError?` | Last failure of `initialize`, `checkDeferredDeepLink` or `findDeferredUser` |
-| `sdkVersion` | `String` | `"1.3.0"` |
+| `sdkVersion` | `String` | `"1.4.0"` |
+| `links` | `Stream<DLNLink>` | 1.4.0: every open, deferred or direct (a broadcast stream) |
+| `listen([options])` | `void` | 1.4.0: starts `links`, with `DLNLinkOptions` |
+| `pendingLink` / `pendingLinks` | `DLNLink?` / `List<DLNLink>` | 1.4.0: links kept by `hold: true`, deferred first |
+| `releasePendingLink()` / `clearPendingLink()` | `void` | 1.4.0: deliver them and end the hold / drop them |
+| `resolveLink(url)` | `Future<DLNLink?>` | 1.4.0: looks the link up on the server; unresolved on a miss or failure, `null` if it isn't your link |
 
-Not in the Flutter plugin: a link stream for direct opens (use `app_links`) and `createDeepLink`. Web, macOS, Windows and Linux aren't supported: there, every call resolves `null` or `false` and `lastError` is `notInitialized`.
+Not in the Flutter plugin: `createDeepLink`. Web, macOS, Windows and Linux aren't supported: there, every call resolves `null` or `false` and `lastError` is `notInitialized`.
 
 ## FlutterFlow
 
-Add `deeplinknow: ^1.3.0` under a custom action's **Pubspec Dependencies**. The [FlutterFlow guide](/docs/flutterflow) has the custom action that opens the right FlutterFlow page from the link, plus the entitlement and intent filter steps in FlutterFlow's Configuration Files.
+Add `deeplinknow: ^1.4.0` under a custom action's **Pubspec Dependencies**. The [FlutterFlow guide](/docs/flutterflow) has the custom action that opens the right FlutterFlow page from the link, plus the entitlement and intent filter steps in FlutterFlow's Configuration Files.
 
 ## Testing your integration
 
@@ -212,6 +253,7 @@ The plugin adds nothing to what the native SDKs collect: the device fields used 
 | `POST /api/v1/sdk/init` | public | `initialize` (one call per `initialize`) |
 | `GET /api/v1/sdk/referrer-lookup` | public | `checkDeferredDeepLink` on Android |
 | `POST /api/v1/sdk/match` | public | `checkDeferredDeepLink` (fingerprint step), `findDeferredUser` |
+| `GET /api/v1/sdk/resolve` | public | `listen` with `resolve: true`, `resolveLink` |
 
 ## Support
 
