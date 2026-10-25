@@ -50,7 +50,7 @@ If `pod install` (or `npx expo prebuild`) says no spec satisfies `DeepLinkNow (~
 
 Autolinking picks the right native module (TurboModule on the new architecture, bridge module on the old one). Add the Associated Domains entitlement (`applinks:myapp.deeplinknow.com`) on iOS and an `autoVerify` https intent filter for your link domains on Android. See the [iOS](/docs/ios) and [Android](/docs/android) docs for details and the dashboard settings that serve the `.well-known` files.
 
-## Getting Started
+## Getting started
 
 ### Initialize the SDK
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DeepLinkNow Android SDK (`com.deeplinknow:dln-android`, Kotlin, class `com.deeplinknow.DLN`) does one job: when a user taps one of your links before installing your app, it hands your app the path and query they tapped on first launch. It is not an analytics or attribution SDK. It never reads the Google Advertising ID (GAID) and needs no ad-related permissions.
+When a user taps one of your links before installing your app, the DeepLinkNow Android SDK (`com.deeplinknow:dln-android`, Kotlin, class `com.deeplinknow.DLN`) hands your app the path and query they tapped on first launch. It is not an analytics or attribution SDK. It never reads the Google Advertising ID (GAID) and needs no ad-related permissions.
 
 On Android the deferred link comes from two sources, tried in this order:
 
@@ -52,7 +52,7 @@ The library declares `android.permission.INTERNET` itself and ships consumer R8/
 
 3. Verify with `adb shell pm get-app-links <your.package>`.
 
-## Getting Started
+## Getting started
 
 ### Initialize the SDK
 
@@ -148,7 +148,8 @@ Fingerprint matching is the backup for installs without a usable referrer (for e
 - The SDK sends the same kind of description of the device. The server compares it with clicks on **your** app's link pages from the **last 1 hour** and returns up to 10 candidates, best first.
 - Each candidate has a `confidence_score` (0–100) and a `match_quality`: `HIGH` (75+), `MEDIUM` (50–74) or `LOW` (30–49). Candidates below 30 are not returned.
 - An IP match is not required. Clicks from the same device class with a matching screen or OS version are considered too.
-- Score weights: IP 40, device 30, time 20, locale 10. Missing data never counts as agreement. The time score decays linearly across the 1-hour claim window.
+- Score weights: IP 40, device 27 (screen 15, OS version 12), time 18, locale 15 (time zone 10, language 5). Device points count only when the platform and device class agree. Chrome on Android always reports "Android 10", so a compatible OS version earns 6, not 12. Missing data never counts as agreement. The time score decays linearly across the 1-hour claim window.
+- Each match in the `/sdk/match` response carries `score_version` (`2` since October 2026). If you tuned `minConfidence` on the old weights (IP 40, device 30, time 20, locale 10), check it again: the same device without an IP match now scores 54 rather than 60.
 - **You choose the threshold.** The `minConfidence` filter is off by default. Use `matchQuality` or `confidenceScore` to decide what to route automatically and what to confirm with the user.
 
 ## Handling links that open the app

@@ -8,8 +8,8 @@ import type { Deps } from "./deps.js";
 import { USER_AGENT } from "./version.js";
 
 export const DOCS_ORIGIN = "https://deeplinknow.com";
-/** When the files in content/ were copied from the live site. */
-export const SNAPSHOT_DATE = "2026-10-21";
+/** When the files in content/ were last regenerated from web/ (the same output as the live .md twins and llms files). */
+export const SNAPSHOT_DATE = "2026-10-24";
 
 export const DOC_PAGES = {
   android: "/docs/android.md",

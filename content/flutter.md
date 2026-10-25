@@ -52,7 +52,7 @@ DeepLinkNow serves the `.well-known` files for your domains from your dashboard 
 
 Replace `<alias>` with your app's alias, and add one `<data>` line per custom domain.
 
-## Getting Started
+## Getting started
 
 ### Initialize and get the deferred deep link
 
@@ -190,34 +190,7 @@ Not in the Flutter plugin: a link stream for direct opens (use `app_links`) and 
 
 ## FlutterFlow
 
-1. In **Custom Code → Dependencies** (or the action's **Pubspec Dependencies** field), add `deeplinknow: ^1.3.0`.
-2. Create a custom action `getDeferredDeepLink` with one `String` argument `apiKey` and a nullable `String` return type:
-
-```dart
-// Automatic FlutterFlow imports
-import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/flutter_flow_util.dart';
-import '/custom_code/actions/index.dart';
-import 'package:flutter/material.dart';
-// Begin custom action code
-// DO NOT REMOVE OR MODIFY THE CODE ABOVE!
-
-import 'package:deeplinknow/deeplinknow.dart';
-
-/// Returns the path and query the user tapped before installing (e.g.
-/// "/products/123?ref=newsletter"), or null. Never throws.
-Future<String?> getDeferredDeepLink(String apiKey) async {
-  if (!DeepLinkNow.isInitialized) {
-    await DeepLinkNow.initialize(apiKey);
-  }
-  final link = await DeepLinkNow.checkDeferredDeepLink();
-  return link?.fullPath;
-}
-```
-
-3. Run it from the **On Page Load** actions of your initial page, save the result to a page or app state variable, and navigate when it isn't empty.
-
-Test on a real device or emulator build. The plugin has no web implementation, so FlutterFlow's web-based Test and Run modes return `null`. Universal Links and App Links also need the Associated Domains entitlement and the intent filter above in the native project.
+Add `deeplinknow: ^1.3.0` under a custom action's **Pubspec Dependencies**. The [FlutterFlow guide](/docs/flutterflow) has the custom action that opens the right FlutterFlow page from the link, plus the entitlement and intent filter steps in FlutterFlow's Configuration Files.
 
 ## Testing your integration
 

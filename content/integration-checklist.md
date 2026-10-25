@@ -1,4 +1,4 @@
-# Integration Checklist
+# Integration checklist
 
 An end-to-end checklist for integrating DeepLinkNow into your mobile app.
 
@@ -112,7 +112,7 @@ function route(path: string, query: Record<string, string | true | string[]>) {
 - [ ] Customize the landing page (title, subtitle, button text, social preview)
 - [ ] Forward deferred-link events to your own analytics tool (DeepLinkNow does not do analytics)
 
-## Need Help?
+## Need help?
 
 - [Quick Start](/docs/quickstart)
 - [iOS](/docs/ios), [Android](/docs/android), [React Native](/docs/react-native), [Flutter](/docs/flutter)

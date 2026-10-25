@@ -83,7 +83,7 @@ export function createServer(deps: Deps = defaultDeps()): McpServer {
     {
       annotations: { ...READ_ONLY, openWorldHint: false },
       description:
-        "Explains a DeepLinkNow fingerprint match: what confidence_score and match_quality (HIGH/MEDIUM/LOW) mean, which components (IP 40, device 30, time 20, locale 10) scored and why, and how to choose the SDK's minConfidence threshold. Pass the /sdk/match JSON, a DeferredDeepLink, or just a score. Works offline.",
+        "Explains a DeepLinkNow fingerprint match: what confidence_score and match_quality (HIGH/MEDIUM/LOW) mean, which components scored and why (scoring v2, score_version 2: IP 40, device 27 = screen 15 + OS version 12, counted only when platform and device class agree, time 18, locale 15 = time zone 10 + language 5; a match without score_version is explained on the v1 weights: IP 40, device 30, time 20, locale 10), and how to choose the SDK's minConfidence threshold. Pass the /sdk/match JSON, a DeferredDeepLink, or just a score. Works offline.",
       inputSchema: explainMatchInput,
       title: "Explain a deferred deep link match",
     },

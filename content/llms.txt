@@ -21,9 +21,11 @@
 - [Android SDK (Kotlin)](https://deeplinknow.com/docs/android.md): Install from Maven Central, initialize, and read the deferred link via the Play Install Referrer.
 - [React Native and Expo SDK](https://deeplinknow.com/docs/react-native.md): The @deeplinknow/react-native package, a wrapper over the native SDKs.
 - [Flutter SDK (Dart)](https://deeplinknow.com/docs/flutter.md): The deeplinknow package on pub.dev, a wrapper over the native SDKs. Works in FlutterFlow.
+- [FlutterFlow](https://deeplinknow.com/docs/flutterflow.md): Deferred deep links in FlutterFlow with one custom action: a link's path is a page route, so links open the right page after an install with no mapping.
 - [MCP server for coding agents](https://deeplinknow.com/docs/mcp.md): @deeplinknow/mcp: setup guides, domain checks, match explanations and migration plans for Claude Code, Cursor, Claude Desktop, VS Code and Windsurf.
 - [Migrating from Firebase Dynamic Links](https://deeplinknow.com/docs/firebase-migration.md): Keep FDL-style long links by changing only the host (the app reads queryParams.link), or switch to paths. Code for React Native, iOS and Android.
 - [Integration checklist](https://deeplinknow.com/docs/integration-checklist.md): Everything to check before shipping: domains, entitlements, intent filters, testing.
+- [Smart banner](https://deeplinknow.com/docs/smart-banner.md): One script tag that shows phone visitors of your website a bar to open the same page in your app. No cookies, no tracking requests.
 - [API authentication and keys](https://deeplinknow.com/docs/api/authentication)
 - [Deep links API](https://deeplinknow.com/docs/api/deeplinks)
 - [Campaigns API](https://deeplinknow.com/docs/api/campaigns)
@@ -39,22 +41,19 @@
 - [DeepLinkNow vs Adjust](https://deeplinknow.com/compare/adjust.md): Attribution first. Deferred links may be limited after an ATT opt-out.
 - [DeepLinkNow vs Singular](https://deeplinknow.com/compare/singular.md): Free to 15,000 paid conversions. Every deep link is an attribution link.
 - [DeepLinkNow vs Kochava](https://deeplinknow.com/compare/kochava.md): Free attribution with deferred links. Universal Links and your domain start at $500/mo.
-- [DeepLinkNow vs Airbridge](https://deeplinknow.com/compare/airbridge.md): An MMP from $40/mo. Your deferred link waits on the ATT prompt.
-- [DeepLinkNow vs Linkrunner](https://deeplinknow.com/compare/linkrunner.md): A low-cost MMP, free to 25,000 attributed installs. It reads advertising IDs.
+- [DeepLinkNow vs Airbridge](https://deeplinknow.com/compare/airbridge.md): An MMP billed by data points: about $134/mo at 100,000 users.
 - [DeepLinkNow vs Detour](https://deeplinknow.com/compare/detour.md): 1,500 free clicks, custom domains at $79/mo, and no match score in the app.
-- [DeepLinkNow vs ChottuLink](https://deeplinknow.com/compare/chottulink.md): The same 25,000 MAU free tier as mine, cheaper paid plans, and links you create first.
-- [DeepLinkNow vs WarpLink](https://deeplinknow.com/compare/warplink.md): Strong tooling, billed per click, and no iOS clipboard step.
-- [DeepLinkNow vs Dynalinks](https://deeplinknow.com/compare/dynalinks.md): No deferred links on the free plan. Pro is $14.99 per project.
-- [DeepLinkNow vs Flinku](https://deeplinknow.com/compare/flinku.md): Catch-all routing from $12/mo. Past the click cap, links stop redirecting.
-- [DeepLinkNow vs Rift](https://deeplinknow.com/compare/rift.md): Cheap and new. No fingerprint fallback, no React Native SDK.
-- [DeepLinkNow vs LinkTrace](https://deeplinknow.com/compare/linktrace.md): $9.99 to start, no SDK, fingerprint only. Universal Links need the $29.99 plan.
-- [DeepLinkNow vs AppsOnAir](https://deeplinknow.com/compare/appsonair.md): AppLink is a paid module from $34.98/mo, and a custom domain is $19.99 more.
+- [DeepLinkNow vs LinkTrace](https://deeplinknow.com/compare/linktrace.md): No SDK, fingerprint only, and no custom domain. Universal Links need its top plan.
+- [DeepLinkNow vs AppsOnAir](https://deeplinknow.com/compare/appsonair.md): $54.97/mo for AppLink on your own domain, and no AppLink on the free plan.
 - [DeepLinkNow vs URLgenius](https://deeplinknow.com/compare/urlgenius.md): Billed per click. Deferred links start at $199/mo on its Custom plan.
 
 ## Free tools
 
+- [Deep link tester](https://deeplinknow.com/tools/link-tester): Paste a link: what a tap does on iOS, Android and in Instagram or TikTok, every redirect, and the exact path and query the app receives.
+- [Social preview checker](https://deeplinknow.com/tools/link-preview): How a link unfurls in iMessage, Slack, WhatsApp, X and Facebook: og tags, image size and type, and crawlers the site blocks.
 - [AASA validator](https://deeplinknow.com/tools/aasa-validator): Universal Links: is apple-app-site-association right, and does Apple's CDN have it?
 - [assetlinks.json validator](https://deeplinknow.com/tools/assetlinks-validator): Android App Links: will verification pass, and what does Google say?
+- [Can your links move?](https://deeplinknow.com/tools/switch-check): How your links move off Branch or AppsFlyer: one CNAME for your own domain, or a domain swap in the links for the vendor's.
 - [Ad-block list check](https://deeplinknow.com/tools/adblock-check): Is the domain, or what its CNAME points to, on a block list?
 
 ## Guides
@@ -67,10 +66,13 @@
 ## Optional
 
 - [Everything in one file](https://deeplinknow.com/llms-full.txt): the docs, pricing and comparisons above, concatenated.
+- [Deferred deep linking in Expo Router with +native-intent](https://deeplinknow.com/blog/expo-router-deferred-deep-links.md)
+- [What you get on a paid DeepLinkNow plan](https://deeplinknow.com/blog/what-you-get-on-a-paid-plan.md)
+- [Deferred deep links in Flutter with the deeplinknow plugin](https://deeplinknow.com/blog/flutter-deferred-deep-linking.md)
 - [What Apple's ATT changed for MMPs, and why deep linking never needed it](https://deeplinknow.com/blog/apple-att-framework-mmps.md)
 - [Do you need AI for deep linking?](https://deeplinknow.com/blog/do-you-need-AI-for-deep-linking.md)
 - [Why DeepLinkNow costs less than Branch, AppsFlyer and Airbridge](https://deeplinknow.com/blog/why-is-deeplinknow-so-cheap.md)
 - [How deep linking vendors lock you in, and how to avoid it](https://deeplinknow.com/blog/vendor-lock-in.md)
-- [Why I Built DeepLinkNow](https://deeplinknow.com/blog/why-I-built-this.md)
+- [Why I built DeepLinkNow](https://deeplinknow.com/blog/why-I-built-this.md)
 - [How deferred deep linking works, and why it got harder](https://deeplinknow.com/blog/deferred-deep-linking-2025.md)
 - [Deferred deep linking in React Native and Expo with @deeplinknow/react-native](https://deeplinknow.com/blog/deferred-deep-linking-react-native-expo.md)

@@ -27,7 +27,7 @@ What's different from Firebase:
 - `apn`, `ibi`, `isi` and `efr` aren't needed. DeepLinkNow knows your app from the domain, and it sends users to the App Store or Google Play listing you set in the dashboard. They're harmless to leave in.
 - `afl`, `ifl` and `ofl` (fallback URLs) aren't followed. Phones go to the store; desktop shows a QR code and store buttons.
 - `st`, `sd` and `si` (social preview) aren't read from the URL. Set the preview title, description and image in the dashboard (paid plans).
-- Short links (`yourapp.page.link/abc`) have no equivalent code to keep: use a path instead (Option 2).
+- Short links (`yourapp.page.link/abc`) have no equivalent code to keep: use a path instead (Option 2). If your short links were on your own domain, you can import them (see below).
 
 ### React Native
 
@@ -115,6 +115,32 @@ Your app gets `path: "/invite/8Fk2"` and any query parameters, and routes on the
 
 Each distinct path counts once against your link limit, so put per-user values in the query (`/invite?code=8Fk2`) if you generate a lot of them.
 
+## Import your old short links
+
+If your Dynamic Links used your own domain (such as `links.yourapp.com`) rather than `page.link`, the short links people already shared can keep working. Point that domain at DeepLinkNow as your app's custom domain, then import the links Firebase let you export.
+
+1. Export your Dynamic Links with Google Takeout. You get one CSV file per domain.
+2. In the dashboard, open your app's **Deep Links** page and choose **Import from Firebase**.
+3. Choose the CSV files. The preview shows how many links each file holds, which domains they use, and any rows that can't be imported.
+4. Choose **Import**. When it finishes you can download the rows that weren't imported as a CSV, fix them and import that file again.
+
+Each short link becomes a link on the same path, so `https://links.yourapp.com/abc123` is stored as `abc123`. Its target URL is the original Firebase deep link, its link name becomes the title, and the social title, description and image carry over. The other Firebase parameters (`apn`, `ibi`, `utm_source` and so on) are kept in the link's metadata under `fdl`.
+
+When someone taps an imported link and installs your app, the deferred result carries the original deep link in `targetUrl`. When the app is already installed, the link opens it directly without reaching DeepLinkNow, so look the path up yourself:
+
+```typescript
+const res = await fetch(
+  `https://deeplinknow.com/api/v1/sdk/resolve?path=${encodeURIComponent("/abc123")}`,
+  { headers: { "x-api-key": "dln_pub_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" } }
+);
+if (res.ok) {
+  const { deeplink } = await res.json();
+  handle(deeplink.target_url);
+}
+```
+
+A path your app already has is skipped, never overwritten. Every imported link counts toward your plan's link limit, and links past it are reported so you can import them again after upgrading. Archived links are left out unless you ask for them.
+
 ## Checklist
 
 1. Create the app in the DeepLinkNow dashboard and enter your iOS Team ID and Bundle ID and your Android package name and SHA-256 fingerprints. DeepLinkNow serves `apple-app-site-association` and `assetlinks.json` for your domain.
@@ -125,6 +151,6 @@ Each distinct path counts once against your link limit, so put per-user values i
 
 ## What DeepLinkNow doesn't replace
 
-- **Old `page.link` URLs.** They're dead. Update links you control (emails, QR codes, your site), and accept that old shared links won't open.
-- **Firebase Auth email-link sign-in.** It used Dynamic Links for the sign-in email; Firebase's own documentation covers moving that flow off Dynamic Links. DeepLinkNow doesn't handle sign-in links.
-- **Analytics.** Firebase reported clicks into Google Analytics. DeepLinkNow shows click and install counts, and hands your app the link so you can send it to your own analytics.
+- Old `page.link` URLs no longer work. Update links you control (emails, QR codes, your site), and accept that old shared links won't open.
+- Firebase Auth email-link sign-in used Dynamic Links for the sign-in email; Firebase's own documentation covers moving that flow off Dynamic Links. DeepLinkNow doesn't handle sign-in links.
+- Firebase reported clicks into Google Analytics. DeepLinkNow shows click and install counts, and hands your app the link so you can send it to your own analytics.

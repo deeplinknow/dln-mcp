@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DeepLinkNow iOS SDK (`DeepLinkNow`, Swift) does one job: when a user taps one of your links before installing your app, it hands your app the path and query they tapped on first launch. It is not an analytics or attribution SDK. It never reads the advertising identifier (IDFA), never triggers the App Tracking Transparency prompt, and needs no ATT consent.
+When a user taps one of your links before installing your app, the DeepLinkNow iOS SDK (`DeepLinkNow`, Swift) hands your app the path and query they tapped on first launch. It is not an analytics or attribution SDK. It never reads the advertising identifier (IDFA), never triggers the App Tracking Transparency prompt, and needs no ATT consent.
 
 On iOS the deferred link comes from two sources, tried in this order:
 
@@ -42,7 +42,7 @@ Then run `pod install`. If it says no spec satisfies `DeepLinkNow (~> 1.3)`, you
 2. In Xcode, open **Signing & Capabilities → Associated Domains** and add `applinks:<alias>.deeplinknow.com`, plus `applinks:<your-custom-domain>` if you have one.
 3. Pass incoming URLs to `parseLink` (see [Handling links that open the app](#handling-links-that-open-the-app)).
 
-## Getting Started
+## Getting started
 
 ### Initialize the SDK
 
@@ -151,8 +151,9 @@ Fingerprint matching is the backup for when the pasteboard is empty, the user de
 - On first launch the SDK sends the same kind of description of the device. The server compares it with clicks on **your** app's link pages from the **last 1 hour** and returns up to 10 candidates, best first.
 - Each candidate has a `confidence_score` (0–100) and a `match_quality`: `HIGH` (75+), `MEDIUM` (50–74) or `LOW` (30–49). Candidates below 30 are not returned.
 - **An IP match is not required.** iCloud Private Relay and carrier NAT often give the app a different IP from Safari, so the server also considers clicks from the same device class with a matching screen or OS version.
-- Score weights: IP 40, device 30 (platform, OS version, device class, screen), time 20, locale 10 (language, time zone). Missing data never counts as agreement.
+- Score weights: IP 40, device 27 (screen 15, OS version 12), time 18, locale 15 (time zone 10, language 5). Device points count only when the platform and device class agree (an iPad click never scores for an iPhone). When the browser couldn't report its real iOS version (Chrome for iOS, in-app browsers such as Instagram's), a compatible OS version earns 6 instead of 12. Missing data never counts as agreement.
 - The time score decays linearly across the 1-hour claim window: full marks within 5 minutes, half at about 32 minutes, zero at 60 minutes.
+- So without an IP match, a match where everything else agrees scores 60 (MEDIUM), or 54 from Chrome for iOS or an in-app browser. Each match in the `/sdk/match` response carries `score_version` (`2` since October 2026). If you tuned `minConfidence` on the old weights (IP 40, device 30, time 20, locale 10), check it again: Chrome for iOS and in-app browser matches without an IP match moved from 60 to 54.
 - **You choose the threshold.** `checkDeferredDeepLink()` returns the server's best candidate as is. The `minConfidence` filter is off by default. Use `matchQuality` or `confidenceScore` to decide, for example, to route `HIGH` matches straight away and confirm `MEDIUM` or `LOW` ones with the user.
 
 Once a device gets a `MEDIUM` or better match, the click is claimed for that device, so another phone on the same Wi-Fi doesn't receive it too.

@@ -71,7 +71,7 @@ describe("get_setup_guide", () => {
     expect(expo).toContain("### Expo");
     expect(expo).toContain("npx expo install @deeplinknow/react-native");
     expect(expo).not.toContain("### Bare React Native");
-    expect(expo).toContain("## Getting Started");
+    expect(expo).toContain("## Getting started");
   });
 
   it("MCP-21: falls back to the bundled snapshot, and says so, when the live page is missing, HTML or unreachable", async () => {

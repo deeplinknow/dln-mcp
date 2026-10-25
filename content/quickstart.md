@@ -1,4 +1,4 @@
-# Quick Start Guide
+# Quick start guide
 
 Get deferred deep linking working in a few minutes: one call to initialize, one call to get the deferred link.
 
@@ -12,14 +12,14 @@ Any path on your link domain works as a deep link with no setup: `https://<alias
 
 To try an SDK before creating an app, use the demo key `test_api_key`. It returns mock responses.
 
-## Choose Your Platform
+## Choose your platform
 
 - [React Native / Expo](#react-native)
 - [iOS (Swift)](#ios-swift)
 - [Android (Kotlin)](#android-kotlin)
 - [Flutter](#flutter)
 
-Building with a coding agent (Claude Code, Cursor, VS Code, Windsurf)? Install the [DeepLinkNow MCP server](/docs/mcp) and ask the agent to add DeepLinkNow: it reads these docs and checks your link domain.
+Building with a coding agent? Use DeepLinkNow from Claude Code, Cursor or VS Code: [install the MCP server](/docs/mcp) in one click or one command (no key needed), then ask the agent to add DeepLinkNow. It reads these docs and checks your link domain.
 
 ## React Native
 
@@ -44,7 +44,7 @@ if (link) {
 
 Using Expo Router? Resolve the link in `app/+native-intent.tsx` with `@deeplinknow/react-native/expo-router` instead, so the app opens straight on the right screen. See [Expo Router](/docs/react-native#expo-router).
 
-**→ Next**: [Full React Native documentation](/docs/react-native)
+Next: [Full React Native documentation](/docs/react-native)
 
 ## iOS (Swift)
 
@@ -75,7 +75,7 @@ Handle Universal Links when the app is already installed:
 }
 ```
 
-**→ Next**: [Full iOS documentation](/docs/ios)
+Next: [Full iOS documentation](/docs/ios)
 
 ## Android (Kotlin)
 
@@ -100,7 +100,7 @@ lifecycleScope.launch {
 }
 ```
 
-**→ Next**: [Full Android documentation](/docs/android)
+Next: [Full Android documentation](/docs/android)
 
 ## Flutter
 
@@ -122,7 +122,7 @@ if (link != null) {
 }
 ```
 
-**→ Next**: [Full Flutter documentation](/docs/flutter)
+Next: [Full Flutter documentation](/docs/flutter)
 
 ## How the deferred link is found
 
@@ -157,7 +157,7 @@ Every SDK returns the same `DeferredDeepLink` shape: `path`, `queryParams`, `ful
 - Turn on `enableLogs` to see each step's outcome.
 - On iOS, tapping **Don't Allow** on the paste prompt skips the pasteboard step; fingerprint matching still runs.
 
-## Need Help?
+## Need help?
 
 - Email: support@deeplinknow.com
 - [Integration checklist](/docs/integration-checklist)
